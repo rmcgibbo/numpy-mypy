@@ -1,0 +1,78 @@
+[case zeros]
+import numpy as np
+a = np.zeros(1)
+b = np.zeros((1,2))
+
+reveal_type(a)
+reveal_type(b)
+[out]
+main:5: error: Revealed type is 'numpy.ndarray[builtins.float, numpy.OneD]'
+main:6: error: Revealed type is 'numpy.ndarray[builtins.float, numpy.TwoD]'
+
+
+[case zeros_1]
+import numpy as np
+a = np.zeros([1,2])
+b = np.zeros([1 for _ in range(2+2)])
+reveal_type(a)
+reveal_type(b)
+[out]
+main:4: error: Revealed type is 'numpy.ndarray[builtins.float, numpy.TwoD]'
+main:5: error: Revealed type is 'numpy.ndarray[builtins.float, Any]'
+
+
+[case zeros_2]
+import numpy as np
+a = np.zeros(1, dtype=int)
+b = np.zeros(1, dtype='int')
+c = np.zeros(1, dtype='i')
+reveal_type(a)
+reveal_type(b)
+reveal_type(c)
+[out]
+main:5: error: Revealed type is 'numpy.ndarray[builtins.int, numpy.OneD]'
+main:6: error: Revealed type is 'numpy.ndarray[builtins.int, numpy.OneD]'
+main:7: error: Revealed type is 'numpy.ndarray[builtins.int, numpy.OneD]'
+
+
+[case indexing_0]
+import numpy as np
+a = np.zeros(10, dtype='int')
+b = np.zeros((10, 10))
+
+reveal_type(b[0])
+reveal_type(b[0,0])
+reveal_type(b[a])
+reveal_type(b[:, :])
+[out]
+main:5: error: Revealed type is 'numpy.ndarray[builtins.float, numpy.OneD]'
+main:6: error: Revealed type is 'builtins.float'
+main:7: error: Revealed type is 'numpy.ndarray[builtins.float, numpy.TwoD]'
+main:8: error: Revealed type is 'numpy.ndarray[builtins.float, numpy.TwoD]'
+
+[case empty_like]
+import numpy as np
+a = np.zeros(10)
+b = np.empty_like(a)
+c = np.empty_like(a, dtype=bool)
+d = np.arange(10, dtype=np.int64)
+reveal_type(b)
+reveal_type(c)
+reveal_type(d)
+[out]
+main:6: error: Revealed type is 'numpy.ndarray[builtins.float, numpy.OneD*]'
+main:7: error: Revealed type is 'numpy.ndarray[builtins.bool, numpy.OneD*]'
+main:8: error: Revealed type is 'numpy.ndarray[builtins.int, numpy.OneD]'
+
+
+[case array_constructor]
+import numpy as np
+import itertools
+N = 10
+list = [(i, j) for (i, j) in itertools.combinations(np.arange(N), 2)]
+pairs = np.array(list)
+reveal_type(np.array(list))
+#reveal_type(list)
+#reveal_type(pairs)
+reveal_type(np.array([(i, j) for (i, j) in itertools.combinations(np.arange(N), 2)]))
+[out]
