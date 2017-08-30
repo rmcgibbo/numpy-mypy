@@ -1,26 +1,50 @@
 import sys
 import numpy as np
 import functools
+import itertools
 from typing import Optional, Callable
+from collections import namedtuple
 from mypy.types import (
     Type, Instance, CallableType, TypedDictType, UnionType, NoneTyp, FunctionLike, TypeVarType,
-    AnyType, TypeList, UnboundType, TupleType, Any
+    AnyType, TypeList, UnboundType, TupleType, Any, 
 )
-from mypy.nodes import IntExpr, TupleExpr, StrExpr, NameExpr, ListExpr, Node, MemberExpr
+from mypy.nodes import IntExpr, TupleExpr, StrExpr, NameExpr, ListExpr, Node, MemberExpr, UnaryExpr
 from mypy.plugin import Plugin, FunctionContext, AttributeContext, AnalyzeTypeContext, MethodSigContext, MethodContext
 import logging
 log = logging.getLogger(__name__)
 
+BoundArgument = namedtuple('BoundArgument', ('name', 'formal_typ', 'arg_typ', 'arg'))
+
+INT_TO_DIMTYPE = {
+        1: 'OneD',
+        2: 'TwoD',
+        3: 'ThreeD'
+}
+DIMTYPE_TO_INT = {v: k for k, v in INT_TO_DIMTYPE.items()}
 
 
-def map_name_to_args(funcname, ctx):
-    callee = ctx.api.modules['numpy'].names[funcname].type
+def map_name_to_args(funcname, ctx, calltype='function'):
+    if calltype == 'method':
+        # fixme!
+        callee = ctx.api.modules['numpy'].names['ndarray'].node.names[funcname].type
+        chain_arg_types = [[callee.arg_types[0]]]
+        chain_args = [[]]
+    elif calltype == 'function':
+        callee = ctx.api.modules['numpy'].names[funcname].type
+        chain_arg_types = []
+        chain_args = []
+    else:
+        raise ValueError()
+
     name2arg = {}
-    for arg_name, arg_type, arg in zip(callee.arg_names, ctx.arg_types, ctx.args):
-        if len(arg_type) > 0 and len(arg) > 0:
-            name2arg[arg_name] = (arg_type[0], arg[0])
+    for name, formal_typ, arg_typ, arg in zip(callee.arg_names, callee.arg_types, 
+            itertools.chain(chain_arg_types, ctx.arg_types),
+            itertools.chain(chain_args, ctx.args)):
+        if len(arg) > 0 and len(arg_typ) > 0:
+            ba = BoundArgument(name, formal_typ, arg_typ[0], arg[0])
         else:
-            name2arg[arg_name] = None
+            ba = None
+        name2arg[name] = ba
 
     return name2arg
 
@@ -41,7 +65,8 @@ INFER_OBJECT_AND_TYPE_FUNCTIONS = (
     'numpy.ascontiguousarray')
 
 INFER_DTYPE_FUNCTIONS = (
-    'numpy.fromstring',)
+    'numpy.fromstring',
+    'numpy.arange')
 
 
 
@@ -61,6 +86,12 @@ class NumpyPlugin(Plugin):
         if fullname in ('numpy.any', 'numpy.all', 'numpy.sum'):
             name = fullname.split('.')[1]
             return functools.partial(function_hook, name)
+        if fullname == 'numpy.reshape':
+            name = fullname.split('.')[1]
+            return functools.partial(_InferNdims_hook, name, 'function')
+        if fullname == 'numpy.vstack':
+            name = fullname.split('.')[1]
+            return functools.partial(_RaiseDim_hook, name)
         return False
 
     def get_method_hook(self, fullname: str
@@ -70,19 +101,82 @@ class NumpyPlugin(Plugin):
             if methname.startswith('__') and methname.endswith('__'):
                 return functools.partial(magic_method_hook, methname)
 
+            if methname == 'astype':
+                return functools.partial(_InferDtype_hook, methname)
+            if methname == 'astype_default':
+                return functools.partial(_InferDtypeWithDefault_hook, methname)
+            if methname == 'reshape':
+                return functools.partial(_InferNdims_hook, methname, 'method')
+
         return None
+
+
+def _InferNdims_hook(funcname: str, calltype: str, ctx: FunctionContext):
+    dtype, ndim = ctx.default_return_type.args
+
+    if ndim.type.name() == '_InferNdims':
+        name2arg = map_name_to_args(funcname, ctx, calltype)
+        st = ctx.api.modules['numpy'].names['ShapeType'].type.serialize()
+
+        matches = [f for f in name2arg.values() if f is not None and f.formal_typ.serialize() == st]
+        if len(matches) == 1:
+            ndim = ndim_to_named(ctx, infer_ndim(matches[0]))
+
+    return ctx.default_return_type.copy_modified(args=[dtype, ndim])
+
+
+def _RaiseDim_hook(funcname: str, ctx: FunctionContext):
+    dtype, ndim = ctx.default_return_type.args
+    if ndim.type.name() == '_RaiseDim':
+        arg = ndim.args[0]
+        if isinstance(arg, Instance):
+            ndim_name = INT_TO_DIMTYPE[DIMTYPE_TO_INT[arg.type.name()] + 1]
+            ndim = ctx.api.named_type('numpy.%s' % ndim_name)
+        else:
+            ndim = AnyType()
+
+    return ctx.default_return_type.copy_modified(args=[dtype, ndim])
+
+
+def _InferDtype_hook(funcname, ctx: FunctionContext):
+    dtype, ndim = ctx.default_return_type.args
+    if dtype.type.name() == '_InferDtype':
+        name2arg = map_name_to_args(funcname, ctx)
+        dt = ctx.api.modules['numpy'].names['DtypeType'].type.serialize()
+        matches = [f for f in name2arg.values() if f is not None and f.formal_typ.serialize() == dt]
+        if len(matches) == 1:
+            dtype_str = infer_dtype(matches[0])
+            dtype = dtype_to_named(ctx, dtype_str)
+
+    return ctx.default_return_type.copy_modified(args=[dtype, ndim])
+
+
+def _InferDtypeWithDefault_hook(funcname, ctx: FunctionContext):
+    dtype, ndim = ctx.default_return_type.args
+    if dtype.type.name() == '_InferDtypeWithDefault':
+        name2arg = map_name_to_args(funcname, ctx)
+        dt = ctx.api.modules['numpy'].names['DtypeType'].type.serialize()
+        matches = [f for f in name2arg.values() if f is not None and f.formal_typ.serialize() == dt]
+        if len(matches) == 1:
+            dtype_str = infer_dtype(matches[0])
+            dtype = dtype_to_named(ctx, dtype_str)
+        else:
+            dtype = dtype.args[0]
+
+    return ctx.default_return_type.copy_modified(args=[dtype, ndim])
+
+
 
 
 def infer_shape_and_dtype(funcname, ctx):
     name2arg = map_name_to_args(funcname, ctx)
     dtype, ndim = ctx.default_return_type.args
 
-
     if 'dtype' in name2arg:
         # function signature has dtype argument
         if name2arg['dtype'] is not None:
             # user passed in a dtype argument
-            dtype_str = infer_dtype(*name2arg['dtype'])
+            dtype_str = infer_dtype(name2arg['dtype'])
             dtype = dtype_to_named(ctx, dtype_str)
         else:
             # user passed in no dtype argument
@@ -93,7 +187,7 @@ def infer_shape_and_dtype(funcname, ctx):
         # function signature has a 'shape' argument
         if name2arg['shape'] is not None:
             # user passed in a value
-            ndim = ndim_to_named(ctx, infer_ndim(*name2arg['shape']))
+            ndim = ndim_to_named(ctx, infer_ndim(name2arg['shape']))
 
 
     return ctx.default_return_type.copy_modified(args=[dtype, ndim])
@@ -107,7 +201,7 @@ def infer_object_and_dtype(funcname, ctx):
         # function signature has dtype argument
         if name2arg['dtype'] is not None:
             # user passed in a dtype argument
-            dtype_str = infer_dtype(*name2arg['dtype'])
+            dtype_str = infer_dtype(name2arg['dtype'])
             dtype = dtype_to_named(ctx, dtype_str)
 
     if 'object' in name2arg and name2arg['object'] is not None:
@@ -121,12 +215,18 @@ def infer_object_and_dtype(funcname, ctx):
         elif str(arg_type) == 'builtins.list[Tuple[builtins.int, builtins.int]]':
             ndim = ndim_to_named(ctx, 2)
             dtype = dtype_to_named(ctx, 'int')   
+        elif str(arg_type) == 'builtins.list[Tuple[builtins.int*, builtins.int*]]':
+            ndim = ndim_to_named(ctx, 2)
+            dtype = dtype_to_named(ctx, 'int')
 
     return ctx.default_return_type.copy_modified(args=[dtype, ndim])
 
 
 
-def infer_dtype(arg_type: Type, arg: Node) -> str:
+def infer_dtype(formal_arg) -> str:
+    arg_type = formal_arg.arg_typ
+    arg = formal_arg.arg
+
     if isinstance(arg, NameExpr):
         # np.zeros(1, int)
         dtype_str = arg.name
@@ -151,8 +251,13 @@ def infer_dtype(arg_type: Type, arg: Node) -> str:
 
 
 
-def infer_ndim(arg_type: Type, arg: Node) -> int:
+def infer_ndim(formal_arg) -> str:
+    arg_type = formal_arg.arg_typ
+    arg = formal_arg.arg
+
     if isinstance(arg, IntExpr):
+        ndim = 1
+    elif isinstance(arg, UnaryExpr):
         ndim = 1
     elif isinstance(arg, TupleExpr):
         ndim = arg_type.length()

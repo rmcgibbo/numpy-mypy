@@ -69,10 +69,51 @@ main:8: error: Revealed type is 'numpy.ndarray[builtins.int, numpy.OneD]'
 import numpy as np
 import itertools
 N = 10
-list = [(i, j) for (i, j) in itertools.combinations(np.arange(N), 2)]
-pairs = np.array(list)
-reveal_type(np.array(list))
-#reveal_type(list)
-#reveal_type(pairs)
-reveal_type(np.array([(i, j) for (i, j) in itertools.combinations(np.arange(N), 2)]))
+l = [(i, i) for i in range(N)]
+pairs = np.array(l)
+reveal_type(l)
+reveal_type(pairs)
 [out]
+main:6: error: Revealed type is 'builtins.list[Tuple[builtins.int*, builtins.int*]]'
+main:7: error: Revealed type is 'numpy.ndarray[builtins.int, numpy.TwoD]'
+
+
+[case reshape]
+import numpy as np
+a = np.zeros((2,2,2))
+reveal_type(np.reshape(a, order='C', newshape=(1,1)))
+reveal_type(np.reshape(a, 1))
+reveal_type(np.reshape(a, -1))
+reveal_type(a.reshape(order='C', shape=(1,1)))
+reveal_type(a.reshape(1))
+reveal_type(a.reshape(-1))
+reveal_type(a.reshape((1,1)))
+[out]
+main:3: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.TwoD]'
+main:4: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.OneD]'
+main:5: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.OneD]'
+main:6: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.TwoD]'
+main:7: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.OneD]'
+main:8: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.OneD]'
+main:9: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.TwoD]'
+
+[case vstack]
+import numpy as np
+a = np.zeros(10)
+b = np.zeros((10, 10))
+reveal_type(np.vstack((a, a)))
+reveal_type(np.vstack((b, b)))
+np.vstack((a, b))
+[out]
+main:4: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.TwoD]'
+main:5: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.ThreeD]'
+main:6: error: Cannot infer type argument 2 of "vstack"
+
+
+[case astype]
+import numpy as np
+a = np.zeros(10)
+b = a.astype('bool')
+reveal_type(b)
+[out]
+main:4: error: Revealed type is 'numpy.ndarray[builtins.bool, numpy.OneD*]'
