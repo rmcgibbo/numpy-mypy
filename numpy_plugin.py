@@ -17,7 +17,7 @@ from mypy.sametypes import is_same_type
 import logging
 log = logging.getLogger(__name__)
 
-BoundArgument = namedtuple('BoundArgument', ('name', 'formal_typ', 'arg_typ', 'arg'))
+BoundArgument = namedtuple('BoundArgument', ('name', 'formal_typ', 'arg_typ', 'arg',))
 
 INT_TO_DIMTYPE = {
         1: 'OneD',
@@ -28,19 +28,16 @@ DIMTYPE_TO_INT = {v: k for k, v in INT_TO_DIMTYPE.items()}
 
 
 def map_name_to_args(callee, ctx, calltype='function'):
-    if calltype == 'method':
-        chain_arg_types = [[callee.arg_types[0]]]
-        chain_args = [[]]
-    elif calltype == 'function':
-        chain_arg_types = []
-        chain_args = []
-    else:
-        raise ValueError()
-
     name2arg = {}
-    for name, formal_typ, arg_typ, arg in zip(callee.arg_names, callee.arg_types, 
-            itertools.chain(chain_arg_types, ctx.arg_types),
-            itertools.chain(chain_args, ctx.args)):
+    if calltype == 'method':
+        #name2arg['self'] = BoundArgument('self', callee.arg_types[0], None, None)
+        arg_types = callee.arg_types[1:]
+        arg_names = callee.arg_names[1:]
+    else:
+        arg_types = callee.arg_types
+        arg_names = callee.arg_names
+
+    for name, formal_typ, arg_typ, arg in zip(arg_names, arg_types, ctx.arg_types, ctx.args):
         if len(arg) > 0 and len(arg_typ) > 0:
             ba = BoundArgument(name, formal_typ, arg_typ[0], arg[0])
         else:
@@ -99,7 +96,7 @@ def _InferDtype(funcname: str, return_type_args: Tuple, bound_args: Dict[str, Bo
 
 
 def _InferDtypeWithDefault(funcname: str, return_type_args: Tuple, bound_args: Dict[str, BoundArgument],
-                                ctx: FunctionContext):
+                           ctx: FunctionContext):
     dtype, ndim = return_type_args
     assert dtype.type.name() == '_InferDtypeWithDefault'
     dt = ctx.api.modules['numpy'].names['DtypeType'].type
@@ -114,13 +111,67 @@ def _InferDtypeWithDefault(funcname: str, return_type_args: Tuple, bound_args: D
 
 
 
+def _IndexHook(funcname: str, return_type_args: Tuple, bound_args: Dict[str, BoundArgument],
+               ctx: FunctionContext):
+
+    dtype, ndim = return_type_args
+    self_type = ctx.type
+    assert len(bound_args) == 1
+    index_arg = next(iter(bound_args.values()))
+    index_arg_typ = index_arg.arg_typ
+    self_ndim_name = self_type.args[1].type.name()
+
+    if self_ndim_name not in DIMTYPE_TO_INT:
+        return dtype, ndim
+
+    self_ndim_int = DIMTYPE_TO_INT[self_ndim_name]
+
+    if isinstance(index_arg_typ, Instance):
+        if index_arg_typ.type.name() == 'int':
+            result_ndim = self_ndim_int - 1
+        elif index_arg_typ.type.name() == 'ndarray':
+            index_dtype, index_ndim = index_arg_typ.args
+            if isinstance(index_dtype, Instance) and index_dtype.type.name() == 'int' and isinstance(index_ndim, Instance) and index_ndim.type.name() in DIMTYPE_TO_INT:
+                # indexing with an int array of known dimension
+                index_ndim_int = DIMTYPE_TO_INT[index_ndim.type.name()]
+                result_ndim = self_ndim_int + index_ndim_int - 1
+            elif isinstance(index_dtype, Instance) and index_dtype.type.name() == 'bool' and isinstance(index_ndim, Instance) and index_ndim.type.name() in DIMTYPE_TO_INT:
+                # indexing with an bool array of known dimension
+                index_ndim_int = DIMTYPE_TO_INT[index_ndim.type.name()]
+                result_ndim = self_ndim_int - index_ndim_int + 1
+
+
+    elif isinstance(index_arg_typ, TupleType):
+        result_ndim = self_ndim_int
+        for arg in index_arg_typ.items:
+            if isinstance(arg, Instance) and arg.type.name() == 'int':
+                result_ndim -= 1
+            elif isinstance(arg, Instance) and arg.type.name() == 'slice':
+                pass
+            else:
+                raise ValueError()
+
+
+    return dtype, result_ndim
+
+
+
+
+
+
+    import IPython; IPython.embed()
+    raise ValueError('here')
+
+
 class NumpyPlugin(Plugin):
     typefunctions  = {
         'numpy._RaiseDim': _RaiseDim,
         'numpy._InferNdims': _InferNdims,
         'numpy._InferDtype': _InferDtype,
         'numpy._InferDtypeWithDefault': _InferDtypeWithDefault,
-
+    }
+    special_ndarray_hooks = {
+        'numpy.ndarray.__getitem__': _IndexHook,
     }
 
     def __init__(self, options: Options):
@@ -139,14 +190,19 @@ class NumpyPlugin(Plugin):
         hooked_functions = defaultdict(list)
         for node in itertools.chain(self.npmodule.names.values(), self.npmodule.names['ndarray'].node.names.values()):
             if isinstance(node.type, CallableType):
-                for q in self.typefunctions:
-                    if node.type.accept(HasInstanceQuery(q)):
-                        hooked_functions[node.fullname].append(q)
+                for tfname, tffunc in self.typefunctions.items():
+                    if node.type.accept(HasInstanceQuery(tfname)):
+                        hooked_functions[node.fullname].append(tffunc)
                         self.fullname2sig[node.fullname] = node.type
+
+        for fullname, func in self.special_ndarray_hooks.items():
+            hooked_functions[fullname].append(func)
+            # todo: factor out this lookup
+            self.fullname2sig[fullname] = self.npmodule.names['ndarray'].node.names[fullname.split('.')[-1]].type
 
         self.hooked_functions = dict(hooked_functions)
         self.is_setup = True
-        print(self.hooked_functions.keys())
+
 
     def function_hook(self, fullname: str, calltype: str, ctx: FunctionContext):
         if not self.is_setup:
@@ -159,14 +215,15 @@ class NumpyPlugin(Plugin):
         callee = self.fullname2sig[fullname]
         bound_args = map_name_to_args(callee, ctx, calltype=calltype)
 
-
-        for typefunction_name in self.hooked_functions[fullname]:
-            tf = self.typefunctions[typefunction_name]
+        for tf in self.hooked_functions[fullname]:
             return_type_args = tf(funcname=fullname, return_type_args=return_type_args, bound_args=bound_args, ctx=ctx)
 
         dtype, ndim = return_type_args
-        return ctx.default_return_type.copy_modified(
-            args=[dtype_to_named(ctx, dtype), ndim_to_named(ctx, ndim)])
+        if ndim == 0:
+            return dtype_to_named(ctx, dtype)
+        else:
+            return ctx.default_return_type.copy_modified(
+                args=[dtype_to_named(ctx, dtype), ndim_to_named(ctx, ndim)])
 
 
 
@@ -181,7 +238,6 @@ class NumpyPlugin(Plugin):
         if (not self.is_setup) or fullname in self.hooked_functions:
             return functools.partial(self.function_hook, fullname, 'method')
         return False
-
 
 
 def infer_ndim(formal_arg) -> str:

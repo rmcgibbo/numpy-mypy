@@ -45,10 +45,10 @@ reveal_type(b[0,0])
 reveal_type(b[a])
 reveal_type(b[:, :])
 [out]
-main:5: error: Revealed type is 'numpy.ndarray[builtins.float, numpy.OneD]'
-main:6: error: Revealed type is 'builtins.float'
-main:7: error: Revealed type is 'numpy.ndarray[builtins.float, numpy.TwoD]'
-main:8: error: Revealed type is 'numpy.ndarray[builtins.float, numpy.TwoD]'
+main:5: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.OneD]'
+main:6: error: Revealed type is 'builtins.float*'
+main:7: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.TwoD]'
+main:8: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.TwoD]'
 
 [case empty_like]
 import numpy as np
