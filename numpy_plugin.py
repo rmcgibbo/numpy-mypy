@@ -78,11 +78,12 @@ def _RaiseDim(funcname: str, return_type_args: Tuple, bound_args: Dict[str, Boun
 
     arg = ndim.args[0]
     if isinstance(arg, Instance):
-        ndim_name = INT_TO_DIMTYPE[DIMTYPE_TO_INT[arg.type.name()] + 1]
+        ndim = DIMTYPE_TO_INT[arg.type.name()] + 1
     else:
         ndim = AnyType()
 
     return dtype, ndim
+
 
 def _InferDtype(funcname: str, return_type_args: Tuple, bound_args: Dict[str, BoundArgument], ctx: FunctionContext):
     dtype, ndim = return_type_args
