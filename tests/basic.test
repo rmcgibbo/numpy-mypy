@@ -117,3 +117,60 @@ b = a.astype('bool')
 reveal_type(b)
 [out]
 main:4: error: Revealed type is 'numpy.ndarray[builtins.bool, numpy.OneD*]'
+
+
+[case all]
+import numpy as np
+reveal_type(np.all(np.zeros(10)))
+reveal_type(np.all(np.zeros((10,10))))
+reveal_type(np.all(np.zeros((10,10)), axis=1))
+reveal_type(np.all(np.zeros((10,10)), axis=(0,1)))
+reveal_type(np.all(np.zeros((10,10)), axis=(0,1), keepdims=True))
+
+from typing import Any
+f = 0  # type: Any
+reveal_type(np.all(np.zeros((10,10)), axis=(0,1), keepdims=f))
+reveal_type(np.all(np.zeros((10,10)), axis=(0,1), keepdims=False))
+[out]
+main:2: error: Revealed type is 'builtins.bool'
+main:3: error: Revealed type is 'builtins.bool'
+main:4: error: Revealed type is 'numpy.ndarray[builtins.bool, numpy.OneD]'
+main:5: error: Revealed type is 'builtins.bool'
+main:6: error: Revealed type is 'numpy.ndarray[builtins.bool, numpy.TwoD]'
+main:10: error: Revealed type is 'numpy.ndarray[builtins.bool, Any]'
+main:11: error: Revealed type is 'builtins.bool'
+
+
+[case choose]
+import numpy as np
+reveal_type(np.choose(np.zeros(10, dtype='int'), (np.ones(10), np.zeros(10))))
+[out]
+FIXME
+
+
+[case cumsum]
+import numpy as np
+reveal_type(np.cumsum(np.zeros((10,10)),axis=1))
+reveal_type(np.cumsum(np.zeros((10,10))))
+reveal_type(np.cumsum(np.zeros((10,10)),axis=None))
+[out]
+main:2: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.TwoD*]'
+main:3: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.OneD]'
+main:4: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.OneD]'
+
+
+[case diagonal]
+import numpy as np
+reveal_type(np.diagonal(np.zeros((10,10))))
+reveal_type(np.diagonal(np.zeros((10,10,10))))
+[out]
+main:2: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.OneD]'
+main:3: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.TwoD]'
+
+[case diag]
+import numpy as np
+reveal_type(np.diag(np.zeros((10,10))))
+reveal_type(np.diag(np.zeros(10)))
+[out]
+main:2: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.OneD]'
+main:3: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.TwoD]'
