@@ -44,11 +44,58 @@ reveal_type(b[0])
 reveal_type(b[0,0])
 reveal_type(b[a])
 reveal_type(b[:, :])
+reveal_type(b[...])
+reveal_type(b[0:10])
+reveal_type(b[..., 0])
+reveal_type(b[..., 0,0])
+reveal_type(b[:, 1])
+reveal_type(b[[0,1]])
+reveal_type(np.zeros((3,10,10))[np.ones(3, dtype=bool)])
+reveal_type(np.zeros((3,3,3))[np.ones((3,3,3), dtype=bool)])
 [out]
 main:5: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.OneD]'
 main:6: error: Revealed type is 'builtins.float*'
 main:7: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.TwoD]'
 main:8: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.TwoD]'
+main:9: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.TwoD]'
+main:10: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.TwoD]'
+main:11: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.OneD]'
+main:12: error: Revealed type is 'builtins.float*'
+main:13: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.OneD]'
+main:14: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.TwoD]'
+main:15: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.ThreeD]'
+main:16: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.OneD]'
+
+[case indexing_1]
+import numpy as np
+i1 = np.zeros(10, dtype='int')
+a = np.zeros((3, 3, 3))
+reveal_type(a[1,1,1])  # 4
+reveal_type(a[(0,1,2),]) # 5
+reveal_type(a[1,1,i1]) # 6
+reveal_type(a[1,i1,i1]) # 7
+reveal_type(a[i1,i1,i1]) # 8
+reveal_type(a[...]) # 9
+reveal_type(a[tuple([1,1,1])]) # 10
+[out]
+main:4: error: Revealed type is 'builtins.float*'
+main:5: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.ThreeD]'
+main:6: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.OneD]'
+main:7: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.OneD]'
+main:8: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.OneD]'
+main:9: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.ThreeD]'
+main:10: error: Revealed type is 'numpy.ndarray[builtins.float*, Any]'
+
+
+[case indexing_2]
+import numpy as np
+b = np.zeros((10, 10))
+reveal_type(b[None])
+reveal_type(b[np.newaxis])
+[out]
+main:3: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.ThreeD]'
+main:4: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.ThreeD]'
+
 
 [case empty_like]
 import numpy as np
@@ -145,7 +192,7 @@ main:11: error: Revealed type is 'builtins.bool'
 import numpy as np
 reveal_type(np.choose(np.zeros(10, dtype='int'), (np.ones(10), np.zeros(10))))
 [out]
-FIXME
+main:2: error: Revealed type is 'numpy.ndarray[Any, numpy.OneD*]'
 
 
 [case cumsum]
