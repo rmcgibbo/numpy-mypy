@@ -113,8 +113,8 @@ reveal_type(b)
 reveal_type(c)
 reveal_type(d)
 [out]
-main:6: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.OneD*]'
-main:7: error: Revealed type is 'numpy.ndarray[builtins.bool, numpy.OneD*]'
+main:6: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.OneD]'
+main:7: error: Revealed type is 'numpy.ndarray[builtins.bool, numpy.OneD]'
 main:8: error: Revealed type is 'numpy.ndarray[builtins.int, numpy.OneD]'
 
 
@@ -150,13 +150,13 @@ reveal_type(a.reshape(1))
 reveal_type(a.reshape(-1))
 reveal_type(a.reshape((1,1)))
 [out]
-main:3: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.TwoD]'
-main:4: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.OneD]'
-main:5: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.OneD]'
-main:6: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.TwoD]'
-main:7: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.OneD]'
-main:8: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.OneD]'
-main:9: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.TwoD]'
+main:3: error: Revealed type is 'numpy.ndarray[builtins.float, numpy.TwoD]'
+main:4: error: Revealed type is 'numpy.ndarray[builtins.float, numpy.OneD]'
+main:5: error: Revealed type is 'numpy.ndarray[builtins.float, numpy.OneD]'
+main:6: error: Revealed type is 'numpy.ndarray[builtins.float, numpy.TwoD]'
+main:7: error: Revealed type is 'numpy.ndarray[builtins.float, numpy.OneD]'
+main:8: error: Revealed type is 'numpy.ndarray[builtins.float, numpy.OneD]'
+main:9: error: Revealed type is 'numpy.ndarray[builtins.float, numpy.TwoD]'
 
 [case vstack]
 import numpy as np
@@ -235,3 +235,14 @@ reveal_type(np.diag(np.zeros(10)))
 [out]
 main:2: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.OneD]'
 main:3: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.TwoD]'
+
+
+[case add]
+import numpy as np
+a = np.zeros((1,1))
+b = np.zeros((1,1))
+reveal_type(np.add(a, b))
+[out]
+main:4: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.TwoD]'
+
+

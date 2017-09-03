@@ -7,15 +7,16 @@ from mypy.options import Options
 from mypy.plugin import Plugin, FunctionContext, AttributeContext, AnalyzeTypeContext, MethodSigContext, MethodContext
 from mypy.types import (
     Type, Instance, CallableType, TypedDictType, UnionType, NoneTyp, FunctionLike, TypeVarType,
-    AnyType, TypeList, UnboundType, TupleType, Any, TypeQuery
+    AnyType, TypeList, UnboundType, TupleType, Any, TypeQuery, TypeVisitor
 )
-
-from .typefunctions import (_RaiseDim, _LowerDim, _LowerDim2, _InferNdimsFromShape,
-                            _InferNdimsReduction, _InferNdimsIfAxisSpecified, _InferDtype,
-                            _InferDtypeWithDefault, _ToggleDims_12_21)
+# from .typefunctions import (_RaiseDim, _LowerDim, _LowerDim2, _InferNdimsFromShape,
+#                             _InferNdimsReduction, _InferNdimsIfAxisSpecified, _InferDtype,
+#                             _InferDtypeWithDefault, _ToggleDims_12_21)
+from .typefunctions import (InferDtypeWithDefault, InferNdimsFromShape)
 from .indexing import ndarray_getitem
 from .ndarray_constructor import ndarray_constructor
 from .bind_arguments import bind_arguments
+from .ufuncs import ufunc_cast, broadcast
 from . import shortcuts
 
 
@@ -31,21 +32,77 @@ class HasInstanceQuery(TypeQuery[bool]):
             return super().visit_instance(t)
 
 
+def get_type_dependencies(typ: Type) -> List[str]:
+    return typ.accept(TypeDependenciesVisitor())
+
+
+from .shortcuts import int_type
+class TypeDependenciesVisitor(TypeVisitor):
+    def __init__(self, typefunctions, funcname, bound_args):
+        self.typefunctions = typefunctions
+        self.funcname = funcname
+        self.bound_args = bound_args
+
+    def visit_instance(self, typ: Instance) -> List[str]:
+        fullname = typ.type.fullname()
+        if fullname in self.typefunctions:
+            return self.typefunctions[fullname](typ, self.funcname, self.bound_args)
+
+        return Instance(typ.type, [arg.accept(self) for arg in typ.args])
+
+    def visit_any(self, typ) -> List[str]:
+        return typ
+
+    def visit_none_type(self, typ) -> List[str]:
+        return typ
+
+    def visit_callable_type(self, typ) -> List[str]:
+        raise NotImplementedError
+
+    def visit_deleted_type(self, typ) -> List[str]:
+        return typ
+
+    def visit_partial_type(self, typ) -> List[str]:
+        raise NotImplementedError
+
+    def visit_tuple_type(self, typ) -> List[str]:
+        raise NotImplementedError
+
+    def visit_type_type(self, typ) -> List[str]:
+        # TODO: replace with actual implementation
+        return typ
+
+    def visit_type_var(self, typ) -> List[str]:
+        return typ
+
+    def visit_typeddict_type(self, typ) -> List[str]:
+        raise NotImplementedError
+
+    def visit_unbound_type(self, typ) -> List[str]:
+        raise NotImplementedError
+
+    def visit_uninhabited_type(self, typ) -> List[str]:
+        raise NotImplementedError
+
+    def visit_union_type(self, typ) -> List[str]:
+        return typ
 
 
 class NumpyPlugin(Plugin):
     typefunctions  = {
-        'numpy._RaiseDim': _RaiseDim,
-        'numpy._LowerDim': _LowerDim,
-        'numpy._LowerDim2': _LowerDim2,
-        'numpy._InferNdimsFromShape': _InferNdimsFromShape,
-        'numpy._InferNdimsReduction': _InferNdimsReduction,
-        'numpy._InferNdimsIfAxisSpecified': _InferNdimsIfAxisSpecified,
-        'numpy._InferDtype': _InferDtype,
-        'numpy._InferDtypeWithDefault': _InferDtypeWithDefault,
-        'numpy._ToggleDims_12_21': _ToggleDims_12_21,
-
+        # 'numpy._RaiseDim': _RaiseDim,
+        # 'numpy._LowerDim': _LowerDim,
+        # 'numpy._LowerDim2': _LowerDim2,
+        'numpy._InferNdimsFromShape': InferNdimsFromShape,
+        # 'numpy._InferNdimsReduction': _InferNdimsReduction,
+        # 'numpy._InferNdimsIfAxisSpecified': _InferNdimsIfAxisSpecified,
+        # 'numpy._InferDtype': _InferDtype,
+        'numpy._InferDtypeWithDefault': InferDtypeWithDefault,
+        # 'numpy._ToggleDims_12_21': _ToggleDims_12_21,
+        # 'numpy._UfuncCast': ufunc_cast,
+        # 'numpy._Broadcast': broadcast,
     }
+
     special_ndarray_hooks = {
         'numpy.ndarray.__getitem__': ndarray_getitem,
         'numpy.array': ndarray_constructor,
@@ -59,7 +116,7 @@ class NumpyPlugin(Plugin):
         self.is_setup = False
         self.api = None
         self.npmodule = None
-        self.hooked_functions = {}
+        self.hooked_functions = set()
         self.fullname2sig = {}
 
     def do_setup(self, ctx: FunctionContext):
@@ -67,16 +124,15 @@ class NumpyPlugin(Plugin):
         self.npmodule = ctx.api.modules['numpy']
         shortcuts.API = self.api
 
-        hooked_functions = defaultdict(list)
         for node in itertools.chain(self.npmodule.names.values(), self.npmodule.names['ndarray'].node.names.values()):
             if isinstance(node.type, CallableType):
                 for tfname, tffunc in self.typefunctions.items():
                     if node.type.accept(HasInstanceQuery(tfname)):
-                        hooked_functions[node.fullname].append(tffunc)
+                        self.hooked_functions.add(node.fullname)
                         self.fullname2sig[node.fullname] = node.type
 
         for fullname, func in self.special_ndarray_hooks.items():
-            hooked_functions[fullname].append(func)
+            self.hooked_functions.add(fullname)
             split = fullname.split('.')
             if len(split) == 2:
                 assert split[0] == 'numpy'
@@ -87,7 +143,6 @@ class NumpyPlugin(Plugin):
             else:
                 assert False
 
-        self.hooked_functions = dict(hooked_functions)
         self.is_setup = True
 
 
@@ -102,15 +157,12 @@ class NumpyPlugin(Plugin):
         callee = self.fullname2sig[fullname]
         bound_args = bind_arguments(callee, ctx, calltype=calltype)
 
-        for tf in self.hooked_functions[fullname]:
-            return_type_args = tf(funcname=fullname, return_type_args=return_type_args, bound_args=bound_args, ctx=ctx)
+        if fullname in self.special_ndarray_hooks:
+            return self.special_ndarray_hooks[fullname](bound_args, ctx)
 
-        dtype, ndim = return_type_args
-        if ndim == 0:
-            return dtype_to_named(ctx, dtype)
-        else:
-            return ctx.default_return_type.copy_modified(
-                args=[dtype_to_named(ctx, dtype), ndim_to_named(ctx, ndim)])
+        result = ctx.default_return_type.accept(TypeDependenciesVisitor(self.typefunctions, fullname, bound_args))
+        return result
+
 
     def get_function_hook(self, fullname):
         if (not self.is_setup) or fullname in self.hooked_functions:
@@ -123,26 +175,3 @@ class NumpyPlugin(Plugin):
             return functools.partial(self.function_hook, fullname, 'method')
         return False
 
-
-def dtype_to_named(ctx, dtype):
-    if isinstance(dtype, Type):
-        return dtype
-
-    if dtype == 'Any':
-        return AnyType()
-
-    return ctx.api.named_type(dtype)
-
-
-def ndim_to_named(ctx, ndim):
-    if ndim == 'Any':
-        return AnyType()
-    if isinstance(ndim, Type):
-        return ndim
-
-    a = {
-        1: 'OneD',
-        2: 'TwoD',
-        3: 'ThreeD'
-    }[ndim]
-    return ctx.api.named_type('numpy.%s' % a)

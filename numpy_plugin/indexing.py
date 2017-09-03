@@ -8,13 +8,13 @@ from .shortcuts import (is_int, is_ndarray_of_ints, ndarray_dim_as_int,
                         is_slice, is_ellipsis, is_ndarray_of_bools,
                         is_list_of_int, is_ndsequence_of_ints,
                         is_ndsequence_of_bools, ndsequence_dim_as_int,
-                        is_basic_index_sequence, is_none)
+                        is_basic_index_sequence, is_none, dim_as_type)
 
-def ndarray_getitem(funcname: str,
-               return_type_args: Tuple,
-               bound_args: Dict[str, BoundArgument],
-               ctx: FunctionContext):
-    dtype, ndim = return_type_args
+
+
+def ndarray_getitem(bound_args: Dict[str, BoundArgument],
+                    ctx: FunctionContext):
+
     self_type = ctx.type
     assert len(bound_args) == 1
     index_arg = next(iter(bound_args.values()))
@@ -22,7 +22,7 @@ def ndarray_getitem(funcname: str,
     self_ndim_name = self_type.args[1].type.name()
 
     if self_ndim_name not in DIMTYPE_TO_INT:
-        return dtype, ndim
+        return ctx.default_return_type
 
     self_ndim_int = DIMTYPE_TO_INT[self_ndim_name]
 
@@ -31,7 +31,10 @@ def ndarray_getitem(funcname: str,
     except BasicIndexingError:
         result_ndim = advanced_indexing_ndim(self_ndim_int, index_arg_typ)
 
-    return dtype, result_ndim
+    if result_ndim == 0:
+        return ctx.default_return_type.args[0]
+    return ctx.default_return_type.copy_modified(
+        args=[ctx.default_return_type.args[0], dim_as_type(result_ndim)])
 
 
 def basic_indexing_ndim(input_ndim: int, type: Type) -> Union[int, str]:
