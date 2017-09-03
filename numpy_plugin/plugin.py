@@ -1,7 +1,7 @@
 from typing import *
 import itertools
 import functools
-from collections import namedtuple, defaultdict
+from collections import defaultdict
 
 from mypy.options import Options
 from mypy.plugin import Plugin, FunctionContext, AttributeContext, AnalyzeTypeContext, MethodSigContext, MethodContext
@@ -10,13 +10,12 @@ from mypy.types import (
     AnyType, TypeList, UnboundType, TupleType, Any, TypeQuery
 )
 
-BoundArgument = namedtuple('BoundArgument', ('name', 'formal_typ', 'arg_typ', 'arg',))
-
 from .typefunctions import (_RaiseDim, _LowerDim, _LowerDim2, _InferNdimsFromShape,
                             _InferNdimsReduction, _InferNdimsIfAxisSpecified, _InferDtype,
                             _InferDtypeWithDefault, _ToggleDims_12_21)
-from .indexing import _IndexHook
-
+from .indexing import ndarray_getitem
+from .ndarray_constructor import ndarray_constructor
+from .bind_arguments import bind_arguments
 from . import shortcuts
 
 
@@ -48,7 +47,10 @@ class NumpyPlugin(Plugin):
 
     }
     special_ndarray_hooks = {
-        'numpy.ndarray.__getitem__': _IndexHook,
+        'numpy.ndarray.__getitem__': ndarray_getitem,
+        'numpy.array': ndarray_constructor,
+        'numpy.asarray': ndarray_constructor,
+        'numpy.ascontiguousarray': ndarray_constructor,
     }
 
     def __init__(self, options: Options):
@@ -63,12 +65,7 @@ class NumpyPlugin(Plugin):
     def do_setup(self, ctx: FunctionContext):
         self.api = ctx.api
         self.npmodule = ctx.api.modules['numpy']
-
-        s = shortcuts._NumpyShortcuts(self.api)
-        for method in dir(s):
-            a = getattr(s, method)
-            if not method.startswith('__') and callable(a):
-                setattr(shortcuts, method, a)
+        shortcuts.API = self.api
 
         hooked_functions = defaultdict(list)
         for node in itertools.chain(self.npmodule.names.values(), self.npmodule.names['ndarray'].node.names.values()):
@@ -80,8 +77,15 @@ class NumpyPlugin(Plugin):
 
         for fullname, func in self.special_ndarray_hooks.items():
             hooked_functions[fullname].append(func)
-            # todo: factor out this lookup
-            self.fullname2sig[fullname] = self.npmodule.names['ndarray'].node.names[fullname.split('.')[-1]].type
+            split = fullname.split('.')
+            if len(split) == 2:
+                assert split[0] == 'numpy'
+                self.fullname2sig[fullname] = self.npmodule.names[split[1]].type
+            elif len(split) == 3:
+                assert split[0] == 'numpy'
+                self.fullname2sig[fullname] = self.npmodule.names[split[1]].node.names[split[2]].type
+            else:
+                assert False
 
         self.hooked_functions = dict(hooked_functions)
         self.is_setup = True
@@ -96,7 +100,7 @@ class NumpyPlugin(Plugin):
         assert fullname in self.hooked_functions
         return_type_args = ctx.default_return_type.args
         callee = self.fullname2sig[fullname]
-        bound_args = map_name_to_args(callee, ctx, calltype=calltype)
+        bound_args = bind_arguments(callee, ctx, calltype=calltype)
 
         for tf in self.hooked_functions[fullname]:
             return_type_args = tf(funcname=fullname, return_type_args=return_type_args, bound_args=bound_args, ctx=ctx)
@@ -108,39 +112,16 @@ class NumpyPlugin(Plugin):
             return ctx.default_return_type.copy_modified(
                 args=[dtype_to_named(ctx, dtype), ndim_to_named(ctx, ndim)])
 
-
-
     def get_function_hook(self, fullname):
         if (not self.is_setup) or fullname in self.hooked_functions:
             return functools.partial(self.function_hook, fullname,  'function')
         return False
-
 
     def get_method_hook(self, fullname: str
                         ) -> Optional[Callable[[MethodContext], Type]]:
         if (not self.is_setup) or fullname in self.hooked_functions:
             return functools.partial(self.function_hook, fullname, 'method')
         return False
-
-
-def map_name_to_args(callee, ctx, calltype='function'):
-    name2arg = {}
-    if calltype == 'method':
-        #name2arg['self'] = BoundArgument('self', callee.arg_types[0], None, None)
-        arg_types = callee.arg_types[1:]
-        arg_names = callee.arg_names[1:]
-    else:
-        arg_types = callee.arg_types
-        arg_names = callee.arg_names
-
-    for name, formal_typ, arg_typ, arg in zip(arg_names, arg_types, ctx.arg_types, ctx.args):
-        if len(arg) > 0 and len(arg_typ) > 0:
-            ba = BoundArgument(name, formal_typ, arg_typ[0], arg[0])
-        else:
-            ba = None
-        name2arg[name] = ba
-
-    return name2arg
 
 
 def dtype_to_named(ctx, dtype):

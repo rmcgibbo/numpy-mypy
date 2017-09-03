@@ -96,6 +96,12 @@ reveal_type(b[np.newaxis])
 main:3: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.ThreeD]'
 main:4: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.ThreeD]'
 
+[case indexing_3]
+import numpy as np
+b = np.zeros((10, 10))
+reveal_type(b[np.zeros(10, dtype='int')])
+[out]
+main:3: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.TwoD]'
 
 [case empty_like]
 import numpy as np
@@ -123,6 +129,14 @@ reveal_type(pairs)
 [out]
 main:6: error: Revealed type is 'builtins.list[Tuple[builtins.int*, builtins.int*]]'
 main:7: error: Revealed type is 'numpy.ndarray[builtins.int, numpy.TwoD]'
+
+[case array_constructor_1]
+import numpy as np
+reveal_type(np.asarray(np.zeros((3,3))))
+[out]
+main:2: error: Revealed type is 'numpy.ndarray[builtins.float, numpy.TwoD]'
+
+
 
 
 [case reshape]

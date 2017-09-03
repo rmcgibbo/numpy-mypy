@@ -9,7 +9,7 @@ from mypy.types import (
     Type, Instance, CallableType, TypedDictType, UnionType, NoneTyp, FunctionLike, TypeVarType,
     AnyType, TypeList, UnboundType, TupleType, Any, TypeQuery
 )
-from .plugin import BoundArgument
+from .bind_arguments import BoundArgument
 
 log = logging.getLogger(__name__)
 
