@@ -3,13 +3,12 @@ from mypy.types import Type, TupleType
 from mypy.plugin import FunctionContext
 from itertools import chain
 from .bind_arguments import BoundArgument
-from .typefunctions import DIMTYPE_TO_INT
 from .shortcuts import (is_int, is_ndarray_of_ints, ndarray_dim_as_int,
                         is_slice, is_ellipsis, is_ndarray_of_bools,
                         is_list_of_int, is_ndsequence_of_ints,
                         is_ndsequence_of_bools, ndsequence_dim_as_int,
-                        is_basic_index_sequence, is_none, dim_as_type)
-
+                        is_basic_index_sequence, is_none, dim_as_type,
+                        DIMTYPE_TO_INT)
 
 
 def ndarray_getitem(bound_args: Dict[str, BoundArgument],

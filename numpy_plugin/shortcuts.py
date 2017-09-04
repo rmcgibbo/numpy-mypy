@@ -3,9 +3,17 @@ from functools import lru_cache
 from mypy.types import NoneTyp, TupleType, UnionType, AnyType, Type
 from mypy.sametypes import is_same_type
 from mypy.subtypes import is_subtype
-from .typefunctions import DIMTYPE_TO_INT
 
 API = None
+
+
+INT_TO_DIMTYPE = {
+        1: 'OneD',
+        2: 'TwoD',
+        3: 'ThreeD'
+}
+DIMTYPE_TO_INT = {v: k for k, v in INT_TO_DIMTYPE.items()}
+
 
 
 @lru_cache()
@@ -149,7 +157,7 @@ def ndsequence_dim_as_type(type: Type):
 
 
 @lru_cache()
-def dim_as_type(i: Union[str, int]):
+def dim_as_type(i: Union[str, int, Type]):
     if isinstance(i, str):
         assert i == 'Any'
         return AnyType()
@@ -159,3 +167,5 @@ def dim_as_type(i: Union[str, int]):
         return API.named_type('numpy.TwoD')
     if i == 3:
         return API.named_type('numpy.ThreeD')
+
+    raise ValueError(i, type(i))

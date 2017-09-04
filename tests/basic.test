@@ -166,8 +166,8 @@ reveal_type(np.vstack((a, a)))
 reveal_type(np.vstack((b, b)))
 np.vstack((a, b))
 [out]
-main:4: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.TwoD]'
-main:5: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.ThreeD]'
+main:4: error: Revealed type is 'numpy.ndarray[builtins.float, numpy.TwoD]'
+main:5: error: Revealed type is 'numpy.ndarray[builtins.float, numpy.ThreeD]'
 main:6: error: Cannot infer type argument 2 of "vstack"
 
 
