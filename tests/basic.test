@@ -177,7 +177,7 @@ a = np.zeros(10)
 b = a.astype('bool')
 reveal_type(b)
 [out]
-main:4: error: Revealed type is 'numpy.ndarray[builtins.bool, numpy.OneD*]'
+main:4: error: Revealed type is 'numpy.ndarray[builtins.bool, numpy.OneD]'
 
 
 [case all]
@@ -225,16 +225,16 @@ import numpy as np
 reveal_type(np.diagonal(np.zeros((10,10))))
 reveal_type(np.diagonal(np.zeros((10,10,10))))
 [out]
-main:2: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.OneD]'
-main:3: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.TwoD]'
+main:2: error: Revealed type is 'numpy.ndarray[builtins.float, numpy.OneD]'
+main:3: error: Revealed type is 'numpy.ndarray[builtins.float, numpy.TwoD]'
 
 [case diag]
 import numpy as np
 reveal_type(np.diag(np.zeros((10,10))))
 reveal_type(np.diag(np.zeros(10)))
 [out]
-main:2: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.OneD]'
-main:3: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.TwoD]'
+main:2: error: Revealed type is 'numpy.ndarray[builtins.float, numpy.OneD]'
+main:3: error: Revealed type is 'numpy.ndarray[builtins.float, numpy.TwoD]'
 
 
 [case add]
@@ -243,6 +243,6 @@ a = np.zeros((1,1))
 b = np.zeros((1,1))
 reveal_type(np.add(a, b))
 [out]
-main:4: error: Revealed type is 'numpy.ndarray[builtins.float*, numpy.TwoD]'
+main:4: error: Revealed type is 'numpy.ndarray[builtins.float, numpy.TwoD]'
 
 

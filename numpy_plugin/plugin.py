@@ -15,7 +15,6 @@ from .typefunctions import registry
 from .indexing import ndarray_getitem
 from .ndarray_constructor import ndarray_constructor
 from .bind_arguments import bind_arguments
-from .ufuncs import ufunc_cast, broadcast
 from . import shortcuts
 
 
@@ -78,7 +77,7 @@ class NumpyPlugin(Plugin):
             return self.special_ndarray_hooks[fullname](bound_args, ctx)
 
         result = ctx.default_return_type.accept(TypeDependenciesVisitor(registry, fullname, bound_args))
-        return result
+        return shortcuts.zerodim_to_scalar(result)
 
 
     def get_function_hook(self, fullname):

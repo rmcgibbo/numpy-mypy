@@ -1,13 +1,14 @@
 from typing import Union
 from functools import lru_cache
-from mypy.types import NoneTyp, TupleType, UnionType, AnyType, Type
+from mypy.types import NoneTyp, TupleType, UnionType, AnyType, Type, TupleType
 from mypy.sametypes import is_same_type
-from mypy.subtypes import is_subtype
+from mypy.subtypes import is_subtype, is_proper_subtype
 
 API = None
 
 
 INT_TO_DIMTYPE = {
+        0: 'ZeroD',
         1: 'OneD',
         2: 'TwoD',
         3: 'ThreeD'
@@ -29,24 +30,28 @@ def bool_type():
     return API.named_type('builtins.bool')
 
 @lru_cache()
-def is_int(type: Type):
-    return is_same_type(type, int_type())
+def is_int(typ: Type):
+    return is_same_type(typ, int_type())
 
 @lru_cache()
-def is_bool(type: Type):
-    return is_same_type(type, bool_type())
+def is_bool(typ: Type):
+    return is_same_type(typ, bool_type())
 
 @lru_cache()
-def is_float(type: Type):
-    return is_same_type(type, float_type())
+def is_tuple(typ: Type) -> bool:
+    return isinstance(typ, TupleType)
 
 @lru_cache()
-def is_none(type: Type):
-    return is_same_type(type, NoneTyp())
+def is_float(typ: Type):
+    return is_same_type(typ, float_type())
 
 @lru_cache()
-def is_object(type: Type):
-    return is_same_type(type, API.named_type('builtins.object'))
+def is_none(typ: Type):
+    return is_same_type(typ, NoneTyp())
+
+@lru_cache()
+def is_object(typ: Type):
+    return is_same_type(typ, API.named_type('builtins.object'))
 
 @lru_cache()
 def is_ellipsis(type: Type):
@@ -155,17 +160,20 @@ def ndsequence_dim_as_int(type: Type) -> int:
 def ndsequence_dim_as_type(type: Type):
     return dim_as_type(ndsequence_dim_as_int(type))
 
+@lru_cache()
+def zerodim_to_scalar(typ: Type) -> Type:
+    if is_subtype(typ,  API.named_generic_type('numpy.ndarray',
+        args=[AnyType(), API.named_type('numpy.ZeroD')])) and (not is_same_type(typ.args[1], AnyType())):
+        return typ.args[0]
+    return typ
+
 
 @lru_cache()
 def dim_as_type(i: Union[str, int, Type]):
     if isinstance(i, str):
         assert i == 'Any'
         return AnyType()
-    if i == 1:
-        return API.named_type('numpy.OneD')
-    if i == 2:
-        return API.named_type('numpy.TwoD')
-    if i == 3:
-        return API.named_type('numpy.ThreeD')
+    if i in INT_TO_DIMTYPE:
+        return  API.named_type('numpy.%s' % INT_TO_DIMTYPE[i])
 
     raise ValueError(i, type(i))

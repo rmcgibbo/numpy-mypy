@@ -1,28 +1,28 @@
 import numpy as np
+from typing import Dict
+import logging
 from functools import lru_cache
-from typing import Tuple, Dict
-from mypy.types import Type
-from mypy.plugin import FunctionContext
-from .bind_arguments import BoundArgument
-from .shortcuts import is_int, is_bool, is_float, int_type, float_type, bool_type
+from mypy.types import Type, AnyType, Instance, TupleType, NoneTyp
+from mypy.nodes import IntExpr, UnaryExpr, TupleExpr, ListExpr, NameExpr
+
+from .registry import register
+from ..shortcuts import is_int, is_bool, is_float, bool_type, int_type, float_type
+
+from ..bind_arguments import BoundArgument
+
+log = logging.getLogger(__name__)
 
 
-
-
-
-def ufunc_cast(funcname: str, return_type_args, bound_args: Dict[str, BoundArgument], ctx: FunctionContext):
-    dtype, ndim = return_type_args
-    assert dtype.type.name() == '_UfuncCast'
-
-    input_chars = ''.join(map(type_to_char, dtype.args))
+@register('numpy._UfuncCast')
+def UfuncCast(typ: Type, funcname: str, bound_args: Dict[str, BoundArgument]):
+    input_chars = ''.join(map(type_to_char, typ.args))
     output_char = ufunc_to_typecodedict(funcname)[input_chars]
     
     dtype = char_to_type(output_char)
-    return dtype, ndim
+    return dtype
 
 
-def broadcast(funcname: str, return_type_args, bound_args: Dict[str, BoundArgument], ctx: FunctionContext):
-    raise RuntimeError()
+###############################################################################
 
 
 @lru_cache()

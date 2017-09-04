@@ -22,6 +22,20 @@ def InferDtypeWithDefault(typ: Type, funcname: str, bound_args: Dict[str, BoundA
     raise ValueError()
 
 
+
+@register('numpy._InferDtype')
+def InferDtype(typ: Type, funcname: str, bound_args: Dict[str, BoundArgument]):
+
+    matches = [f for f in bound_args.values() if f is not None and is_dtypetype(f.formal_typ)]
+    assert len(matches) == 1
+
+    dtype = infer_dtype(matches[0])
+    return dtype
+
+
+
+###############################################################################
+
 def infer_dtype(formal_arg) -> str:
     arg_type = formal_arg.arg_typ
     arg = formal_arg.arg
