@@ -2,6 +2,7 @@ from typing import Optional, Callable
 import itertools
 import functools
 
+import mypy.types
 from mypy.options import Options
 from mypy.plugin import Plugin, FunctionContext, MethodContext
 from mypy.types import Type, TypeQuery, Instance, CallableType
@@ -87,6 +88,16 @@ class NumpyPlugin(Plugin):
         if (not self.is_setup) or fullname in self.hooked_functions:
             return functools.partial(self.function_hook, fullname, 'method')
         return False
+
+
+def plugin(version):
+    import os
+    paths = [
+        os.environ.get('MYPYPATH', ''),
+        os.path.join(os.path.dirname(__file__), 'stubs/')
+    ]
+    os.environ['MYPYPATH'] = ':'.join(paths)
+    return NumpyPlugin
 
 
 class HasInstanceQuery(TypeQuery[bool]):

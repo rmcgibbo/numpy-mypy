@@ -1,8 +1,3 @@
-"""
-Numpy's mypy stub. Only type declarations for ndarray, the scalar hierarchy and array creation
-methods are provided.
-"""
-from mypy.types import EllipsisType
 from typing import (Any, Callable, Dict, Generic, Iterator, List, Optional, Sequence, Tuple, Type, Text,
                     TypeVar, Union, Sized, Iterable, SupportsInt, SupportsFloat, overload, SupportsAbs)
 
@@ -76,6 +71,7 @@ AxisType = Union[None, int, _AxisTypeSingleton]
 OrderType = Union[str, Sequence[str]]
 DtypeType = Union[dtype, type, str, _DtypeTypeSingleton]
 KeepDimsType = Union[bool, _KeepDimsSingleton]
+EllipsisType = object
 
 _IndexType = Union[int, List[int], EllipsisType, slice, None, 'ndarray[int, Any]', 'ndarray[bool, Any]',]
 IndexType = Union[_IndexType, Tuple[_IndexType, ...]]

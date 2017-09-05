@@ -48,7 +48,7 @@ plugins = {0}/numpy_plugin_entry.py'''.format(BASE_DIR))
         os.chdir(curdir)
         shutil.rmtree(td)
 
-    # print('\n'.join(received_output))
+    print('\n'.join(received_output))
     assert len(expected_output) == len(received_output), (len(expected_output), len(received_output))
     for e, r in zip(expected_output, received_output):
         assert e == r, ('"%s" != "%s"' % (e, r))
