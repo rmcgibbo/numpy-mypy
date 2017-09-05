@@ -27,5 +27,5 @@ def ndarray_constructor(bound_args: Dict[str, BoundArgument],
         return ctx.default_return_type.copy_modified(args=
             [ctx.api.named_type('builtins.float'), ndsequence_dim_as_type(arg_typ)])
 
-    log.info('could not determine type of %s', arg_typ)
+    ctx.api.fail('Could not determine type', ctx.context)
     return ctx.default_return_type.copy_modified(args=[AnyType(), AnyType()])

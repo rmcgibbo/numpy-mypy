@@ -28,8 +28,15 @@ def ndarray_getitem(bound_args: Dict[str, BoundArgument],
 
     if result_ndim == 0:
         return ctx.default_return_type.args[0]
+
+    try:
+        result_type = dim_as_type(result_ndim)
+    except ValueError:
+        ctx.api.fail('too many indices for array', ctx.context)
+        return ctx.default_return_type
+
     return ctx.default_return_type.copy_modified(
-        args=[ctx.default_return_type.args[0], dim_as_type(result_ndim)])
+        args=[ctx.default_return_type.args[0], result_type])
 
 
 def basic_indexing_ndim(input_ndim: int, type: Type) -> Union[int, str]:
