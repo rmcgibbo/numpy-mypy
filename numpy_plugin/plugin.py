@@ -32,7 +32,7 @@ class NumpyPlugin(Plugin):
         self.fullname2sig = {}
 
     def do_setup(self, ctx: FunctionContext):
-        if 'numpy' not in ctx.api.modules:
+        if 'numpy' not in ctx.api.modules or len(ctx.api.modules['numpy'].names['ndarray'].node.names) == 0:
             return
 
         self.api = ctx.api
@@ -54,8 +54,6 @@ class NumpyPlugin(Plugin):
                 self.fullname2sig[fullname] = self.npmodule.names[split[1]].type
             elif len(split) == 3:
                 assert split[0] == 'numpy'
-                # print(split)
-                # print(self.npmodule.names[split[1]].node.names[split[2]])
                 self.fullname2sig[fullname] = self.npmodule.names[split[1]].node.names[split[2]].type
             else:
                 assert False
