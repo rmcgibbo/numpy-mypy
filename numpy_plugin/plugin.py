@@ -1,21 +1,17 @@
-from typing import *
+from typing import Optional, Callable
 import itertools
 import functools
-from collections import defaultdict
 
 from mypy.options import Options
-from mypy.plugin import Plugin, FunctionContext, AttributeContext, AnalyzeTypeContext, MethodSigContext, MethodContext
-from mypy.types import (
-    Type, Instance, CallableType, TypedDictType, UnionType, NoneTyp, FunctionLike, TypeVarType,
-    AnyType, TypeList, UnboundType, TupleType, Any, TypeQuery, TypeVisitor
-)
+from mypy.plugin import Plugin, FunctionContext, MethodContext
+from mypy.types import Type, TypeQuery, Instance, CallableType
 
-from .visitor import TypeDependenciesVisitor
-from .typefunctions import registry
-from .indexing import ndarray_getitem
-from .ndarray_constructor import ndarray_constructor
-from .bind_arguments import bind_arguments
 from . import shortcuts
+from .bind_arguments import bind_arguments
+from .visitor import TypefunctionRegistryTransformer, SimpleTransformer
+from .typefunctions import registry
+from .special_typefunctions.indexing import ndarray_getitem
+from .special_typefunctions.ndarray_constructor import ndarray_constructor
 
 
 class NumpyPlugin(Plugin):
@@ -36,6 +32,9 @@ class NumpyPlugin(Plugin):
         self.fullname2sig = {}
 
     def do_setup(self, ctx: FunctionContext):
+        if 'numpy' not in ctx.api.modules:
+            return
+
         self.api = ctx.api
         self.npmodule = ctx.api.modules['numpy']
         shortcuts.API = self.api
@@ -55,6 +54,8 @@ class NumpyPlugin(Plugin):
                 self.fullname2sig[fullname] = self.npmodule.names[split[1]].type
             elif len(split) == 3:
                 assert split[0] == 'numpy'
+                # print(split)
+                # print(self.npmodule.names[split[1]].node.names[split[2]])
                 self.fullname2sig[fullname] = self.npmodule.names[split[1]].node.names[split[2]].type
             else:
                 assert False
@@ -69,16 +70,14 @@ class NumpyPlugin(Plugin):
                 return ctx.default_return_type
 
         assert fullname in self.hooked_functions
-        return_type_args = ctx.default_return_type.args
         callee = self.fullname2sig[fullname]
         bound_args = bind_arguments(callee, ctx, calltype=calltype)
 
         if fullname in self.special_ndarray_hooks:
             return self.special_ndarray_hooks[fullname](bound_args, ctx)
 
-        result = ctx.default_return_type.accept(TypeDependenciesVisitor(registry, fullname, bound_args))
-        return shortcuts.zerodim_to_scalar(result)
-
+        result = ctx.default_return_type.accept(TypefunctionRegistryTransformer(registry, fullname, bound_args))
+        return result.accept(SimpleTransformer(shortcuts.zerodim_to_scalar))
 
     def get_function_hook(self, fullname):
         if (not self.is_setup) or fullname in self.hooked_functions:

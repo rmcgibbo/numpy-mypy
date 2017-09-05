@@ -1,57 +1,66 @@
-from typing import List
-from mypy.types import (
-    Type, Instance, CallableType, TypedDictType, UnionType, NoneTyp, FunctionLike, TypeVarType,
-    AnyType, TypeList, UnboundType, TupleType, Any, TypeQuery, TypeVisitor
-)
+from mypy.types import Instance, TypeVisitor, TupleType
 
 
-class TypeDependenciesVisitor(TypeVisitor):
-    def __init__(self, typefunctions, funcname, bound_args):
-        self.typefunctions = typefunctions
-        self.funcname = funcname
-        self.bound_args = bound_args
-
-    def visit_instance(self, typ: Instance) -> List[str]:
-        fullname = typ.type.fullname()
-        if fullname in self.typefunctions:
-            return self.typefunctions[fullname](typ, self.funcname, self.bound_args)
-
-        return Instance(typ.type, [arg.accept(self) for arg in typ.args])
-
-    def visit_any(self, typ) -> List[str]:
+class TypeTransformer(TypeVisitor):
+    def visit_instance(self, typ: Instance):
         return typ
 
-    def visit_none_type(self, typ) -> List[str]:
+    def visit_any(self, typ):
         return typ
 
-    def visit_callable_type(self, typ) -> List[str]:
-        raise NotImplementedError
-
-    def visit_deleted_type(self, typ) -> List[str]:
+    def visit_none_type(self, typ):
         return typ
 
-    def visit_partial_type(self, typ) -> List[str]:
+    def visit_callable_type(self, typ):
         raise NotImplementedError
 
-    def visit_tuple_type(self, typ) -> List[str]:
+    def visit_deleted_type(self, typ):
+        return typ
+
+    def visit_partial_type(self, typ):
         raise NotImplementedError
 
-    def visit_type_type(self, typ) -> List[str]:
+    def visit_tuple_type(self, typ):
+        return TupleType([i.accept(self) for i in typ.items], typ.fallback)
+
+    def visit_type_type(self, typ):
         # TODO: replace with actual implementation
         return typ
 
-    def visit_type_var(self, typ) -> List[str]:
+    def visit_type_var(self, typ):
         return typ
 
-    def visit_typeddict_type(self, typ) -> List[str]:
+    def visit_typeddict_type(self, typ):
         raise NotImplementedError
 
-    def visit_unbound_type(self, typ) -> List[str]:
+    def visit_unbound_type(self, typ):
         raise NotImplementedError
 
-    def visit_uninhabited_type(self, typ) -> List[str]:
+    def visit_uninhabited_type(self, typ):
         raise NotImplementedError
 
-    def visit_union_type(self, typ) -> List[str]:
-        return typ
+    def visit_union_type(self, typ):
+        raise NotImplementedError
 
+
+
+class TypefunctionRegistryTransformer(TypeTransformer):
+    def __init__(self, registry, funcname, bound_args):
+        self.registry = registry
+        self.funcname = funcname
+        self.bound_args = bound_args
+
+    def visit_instance(self, typ: Instance):
+        fullname = typ.type.fullname()
+        if fullname in self.registry:
+            return self.registry[fullname](typ, self.funcname, self.bound_args)
+
+        return Instance(typ.type, [arg.accept(self) for arg in typ.args])
+
+
+class SimpleTransformer(TypeTransformer):
+    def __init__(self, instance_function):
+        self.instance_function = instance_function
+
+    def visit_instance(self, typ: Instance):
+        return self.instance_function(typ)

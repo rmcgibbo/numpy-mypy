@@ -1,8 +1,8 @@
 from typing import Union
 from functools import lru_cache
-from mypy.types import NoneTyp, TupleType, UnionType, AnyType, Type, TupleType
+from mypy.types import NoneTyp, UnionType, AnyType, Type, TupleType, UninhabitedType, Instance
 from mypy.sametypes import is_same_type
-from mypy.subtypes import is_subtype, is_proper_subtype
+from mypy.subtypes import is_subtype
 
 API = None
 
@@ -16,54 +16,65 @@ INT_TO_DIMTYPE = {
 DIMTYPE_TO_INT = {v: k for k, v in INT_TO_DIMTYPE.items()}
 
 
-
 @lru_cache()
 def int_type():
     return API.named_type('builtins.int')
+
 
 @lru_cache()
 def float_type():
     return API.named_type('builtins.float')
 
+
 @lru_cache()
 def bool_type():
     return API.named_type('builtins.bool')
+
 
 @lru_cache()
 def is_int(typ: Type):
     return is_same_type(typ, int_type())
 
+
 @lru_cache()
 def is_bool(typ: Type):
     return is_same_type(typ, bool_type())
+
 
 @lru_cache()
 def is_tuple(typ: Type) -> bool:
     return isinstance(typ, TupleType)
 
+
 @lru_cache()
 def is_float(typ: Type):
     return is_same_type(typ, float_type())
+
 
 @lru_cache()
 def is_none(typ: Type):
     return is_same_type(typ, NoneTyp())
 
+
 @lru_cache()
 def is_object(typ: Type):
     return is_same_type(typ, API.named_type('builtins.object'))
+
 
 @lru_cache()
 def is_ellipsis(type: Type):
     return is_same_type(type, API.named_type('builtins.ellipsis'))
 
+
 @lru_cache()
 def is_slice(type: Type):
     return is_same_type(type, API.named_type('builtins.slice'))
 
+
 @lru_cache()
 def is_list_of_int(type: Type):
     return is_same_type(type, API.named_generic_type('builtins.list', args=[int_type()]))
+
 
 @lru_cache()
 def is_basic_index_sequence(type: Type):
@@ -79,17 +90,21 @@ def is_basic_index_sequence(type: Type):
     ])
     return is_subtype(type, API.named_generic_type('typing.Sequence', args=[u]))
 
+
 @lru_cache()
 def is_shapetype(type: Type):
     return is_same_type(type, API.modules['numpy'].names['ShapeType'].type)
+
 
 @lru_cache()
 def is_axestype(type: Type):
     return is_same_type(type, API.modules['numpy'].names['AxesType'].type)
 
+
 @lru_cache()
 def is_dtypetype(type: Type):
     return is_same_type(type, API.modules['numpy'].names['DtypeType'].type)
+
 
 @lru_cache()
 def is_ndarray(type: Type):
@@ -106,14 +121,23 @@ def is_ndarray_of_ints(type: Type, no_bools: bool=True):
         return of_ints
     return of_ints and not is_ndarray_of_bools(type)
 
+
 @lru_cache()
 def is_ndarray_of_bools(type: Type):
     return is_subtype(type, API.named_generic_type('numpy.ndarray',
         args=[bool_type(), API.named_type('numpy._Dimension')]))
 
+
 @lru_cache()
-def ndarray_dim_as_int(type: Type):
-    return DIMTYPE_TO_INT[type.args[1].type.name()]
+def is_ndarray_of_floats(type: Type):
+    return is_subtype(type, API.named_generic_type('numpy.ndarray',
+        args=[float_type(), API.named_type('numpy._Dimension')]))
+
+
+@lru_cache()
+def ndarray_dim_as_int(type: Type) -> Union[int, str]:
+    return dimtype_to_int(type.args[1]) 
+
 
 @lru_cache()
 def is_ndsequence_of(type: Type, base_type: Type):
@@ -123,12 +147,14 @@ def is_ndsequence_of(type: Type, base_type: Type):
     u = UnionType.make_union([si, ssi, sssi])
     return is_subtype(type, u)
 
+
 @lru_cache()
 def is_ndsequence_of_bools(type: Type):
     return is_ndsequence_of(type, bool_type())
 
+
 @lru_cache()
-def is_ndsequence_of_float(type: Type):
+def is_ndsequence_of_floats(type: Type):
     return is_ndsequence_of(type, float_type())
 
 
@@ -160,12 +186,24 @@ def ndsequence_dim_as_int(type: Type) -> int:
 def ndsequence_dim_as_type(type: Type):
     return dim_as_type(ndsequence_dim_as_int(type))
 
+
 @lru_cache()
 def zerodim_to_scalar(typ: Type) -> Type:
     if is_subtype(typ,  API.named_generic_type('numpy.ndarray',
         args=[AnyType(), API.named_type('numpy.ZeroD')])) and (not is_same_type(typ.args[1], AnyType())):
         return typ.args[0]
     return typ
+
+
+@lru_cache()
+def dimtype_to_int(typ) -> Union[int, str]:
+    if isinstance(typ, Instance):
+        return DIMTYPE_TO_INT[typ.type.name()]
+    elif isinstance(typ, UninhabitedType):
+        return 0
+    else:
+        return 'Any'
+    raise ValueError()
 
 
 @lru_cache()

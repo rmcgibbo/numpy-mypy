@@ -7,7 +7,6 @@ BoundArgument = namedtuple('BoundArgument', ('name', 'formal_typ', 'arg_typ', 'a
 def bind_arguments(callee, ctx, calltype: str='function') -> Dict[str, BoundArgument]:
     name2arg = {}
     if calltype == 'method':
-        #name2arg['self'] = BoundArgument('self', callee.arg_types[0], None, None)
         arg_types = callee.arg_types[1:]
         arg_names = callee.arg_names[1:]
     else:

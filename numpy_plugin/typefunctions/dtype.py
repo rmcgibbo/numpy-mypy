@@ -1,11 +1,10 @@
 import numpy as np
 import logging
 from typing import Dict
-from mypy.sametypes import is_same_type
 from mypy.types import Type
 from mypy.nodes import NameExpr, StrExpr, MemberExpr
 
-from .registry import register
+from . import register
 from ..shortcuts import is_dtypetype, int_type, bool_type, float_type
 from ..bind_arguments import BoundArgument
 

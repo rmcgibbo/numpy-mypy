@@ -1,18 +1,23 @@
 from typing import Dict
 import logging
-from mypy.types import Type, AnyType, Instance, TupleType, NoneTyp
+from mypy.types import Type, AnyType, Instance, NoneTyp
 from mypy.nodes import IntExpr, UnaryExpr, TupleExpr, ListExpr, NameExpr
 
-from .registry import register
-from ..shortcuts import is_shapetype, is_axestype, is_int, is_tuple, dim_as_type, DIMTYPE_TO_INT
+from . import register
+from ..shortcuts import is_shapetype, is_axestype, is_int, is_tuple, dim_as_type, dimtype_to_int, DIMTYPE_TO_INT
 from ..bind_arguments import BoundArgument
 
 log = logging.getLogger(__name__)
 
 
 @register('numpy._InferNdimsFromShape')
-def InferNdimsFromShape(typ: Type, funcname: str, bound_args: Dict[str, BoundArgument]):
-    matches = [f for f in bound_args.values() if f is not None and is_shapetype(f.formal_typ)]
+def InferNdimsFromShape(typ: Type,
+                        funcname: str,
+                        bound_args: Dict[str, BoundArgument]):
+    matches = [
+        f for f in bound_args.values()
+        if f is not None and is_shapetype(f.formal_typ)
+    ]
     assert len(matches) == 1
     return infer_ndim(matches[0])
 
@@ -20,18 +25,21 @@ def InferNdimsFromShape(typ: Type, funcname: str, bound_args: Dict[str, BoundArg
 @register('numpy._RaiseDim')
 def RaiseDim(typ: Type, funcname: str, bound_args: Dict[str, BoundArgument]):
     arg = typ.args[0]
-    if isinstance(arg, Instance):
-        ndim = DIMTYPE_TO_INT[arg.type.name()] + 1
-    else:
-        ndim = 'Any'
+    ndim = dimtype_to_int(arg)
+    if isinstance(ndim, int):
+        ndim += 1
 
-    result = dim_as_type(ndim)
-    return result
+    return dim_as_type(ndim)
 
 
 @register('numpy._InferNdimsReduction')
-def InferNdimsReduction(typ: Type, funcname: str, bound_args: Dict[str, BoundArgument]):
-    matches = [f for f in bound_args.values() if f is not None and is_axestype(f.formal_typ)]
+def InferNdimsReduction(typ: Type,
+                        funcname: str,
+                        bound_args: Dict[str, BoundArgument]):
+    matches = [
+        f for f in bound_args.values()
+        if f is not None and is_axestype(f.formal_typ)
+    ]
 
     if len(matches) == 0:
         return dim_as_type(0)
@@ -49,7 +57,7 @@ def InferNdimsReduction(typ: Type, funcname: str, bound_args: Dict[str, BoundArg
         if isinstance(kdarg, NameExpr):
             if kdarg.fullname == 'builtins.True':
                 keepdims = True
-            elif kdarg.fullname == 'builtins.False': 
+            elif kdarg.fullname == 'builtins.False':
                 keepdims = False
             else:
                 keepdims = '?'
@@ -57,7 +65,6 @@ def InferNdimsReduction(typ: Type, funcname: str, bound_args: Dict[str, BoundArg
             keepdims = '?'
     else:
         keepdims = False
-
 
     if keepdims is True:
         ndim = operand_ndim
@@ -77,11 +84,14 @@ def InferNdimsReduction(typ: Type, funcname: str, bound_args: Dict[str, BoundArg
 
 
 @register('numpy._InferNdimsIfAxisSpecified')
-def InferNdimsIfAxisSpecified(typ: Type, funcname: str, bound_args: Dict[str, BoundArgument]):
+def InferNdimsIfAxisSpecified(typ: Type,
+                              funcname: str,
+                              bound_args: Dict[str, BoundArgument]):
     # if axis is None, the default, we return the first type argument
     # if axis is an int we return the second type argument
     assert 'axis' in bound_args
-    if bound_args['axis'] is None or isinstance(bound_args['axis'].arg_typ, NoneTyp):
+    if bound_args['axis'] is None or isinstance(bound_args['axis'].arg_typ,
+                                                NoneTyp):
         # unspecified or specified as None
         ndim = typ.args[0]
     elif is_int(bound_args['axis'].arg_typ):
@@ -93,42 +103,33 @@ def InferNdimsIfAxisSpecified(typ: Type, funcname: str, bound_args: Dict[str, Bo
     return ndim
 
 
-@register('numpy._RaiseDim')
-def RaiseDim(typ: Type, funcname: str, bound_args: Dict[str, BoundArgument]):
-    arg = typ.args[0]
-    if isinstance(arg, Instance):
-        ndim = dim_as_type(DIMTYPE_TO_INT[arg.type.name()] + 1)
-    else:
-        ndim = AnyType()
-
-    return ndim
-
 @register('numpy._LowerDim')
 def LowerDim(typ: Type, funcname: str, bound_args: Dict[str, BoundArgument]):
     arg = typ.args[0]
-    if isinstance(arg, Instance):
-        ndim = dim_as_type(DIMTYPE_TO_INT[arg.type.name()] - 1)
-    else:
-        ndim = AnyType()
+    ndim = dimtype_to_int(arg)
+    if isinstance(ndim, int):
+        ndim -= 1
 
-    return ndim
+    return dim_as_type(ndim)
+
 
 @register('numpy._LowerDim2')
 def LowerDim2(typ: Type, funcname: str, bound_args: Dict[str, BoundArgument]):
     arg = typ.args[0]
-    if isinstance(arg, Instance):
-        ndim = dim_as_type(DIMTYPE_TO_INT[arg.type.name()] - 2)
-    else:
-        ndim = AnyType()
+    ndim = dimtype_to_int(arg)
+    if isinstance(ndim, int):
+        ndim -= 2
 
-    return ndim
+    return dim_as_type(ndim)
 
 
 @register('numpy._ToggleDims_12_21')
-def ToggleDims_12_21(typ: Type, funcname: str, bound_args: Dict[str, BoundArgument]):
+def ToggleDims_12_21(typ: Type,
+                     funcname: str,
+                     bound_args: Dict[str, BoundArgument]):
     arg = typ.args[0]
-    if isinstance(arg, Instance):
-        input_ndim = DIMTYPE_TO_INT[arg.type.name()]
+    input_ndim = dimtype_to_int(arg)
+    if isinstance(input_ndim, int):
         if input_ndim == 2:
             ndim = dim_as_type(1)
         elif input_ndim == 1:
@@ -146,8 +147,10 @@ def LargestDim(typ: Type, funcname: str, bound_args: Dict[str, BoundArgument]):
     arg0 = typ.args[0]
     arg1 = typ.args[1]
 
-    if isinstance(arg0, Instance) and isinstance(arg1, Instance):
-        ndim = max(DIMTYPE_TO_INT[arg0.type.name()], DIMTYPE_TO_INT[arg1.type.name()])
+    d0 = dimtype_to_int(arg0)
+    d1 = dimtype_to_int(arg1)
+    if isinstance(d0, int) and isinstance(d1, int):
+        ndim = max(d0, d1)
     else:
         ndim = 'Any'
 
@@ -171,6 +174,6 @@ def infer_ndim(formal_arg) -> Type:
         ndim = len(arg.items)
     else:
         log.error('could not infer ndim %s %s', arg_type, arg)
-        ndim = 'Any'        
+        ndim = 'Any'
 
     return dim_as_type(ndim)

@@ -1,14 +1,14 @@
-from typing import Union, Tuple, Dict
+from typing import Union, Dict
 from mypy.types import Type, TupleType
 from mypy.plugin import FunctionContext
 from itertools import chain
-from .bind_arguments import BoundArgument
-from .shortcuts import (is_int, is_ndarray_of_ints, ndarray_dim_as_int,
-                        is_slice, is_ellipsis, is_ndarray_of_bools,
-                        is_list_of_int, is_ndsequence_of_ints,
-                        is_ndsequence_of_bools, ndsequence_dim_as_int,
-                        is_basic_index_sequence, is_none, dim_as_type,
-                        DIMTYPE_TO_INT)
+from ..bind_arguments import BoundArgument
+from ..shortcuts import (is_int, is_ndarray_of_ints, ndarray_dim_as_int,
+                         is_slice, is_ellipsis, is_ndarray_of_bools,
+                         is_list_of_int, is_ndsequence_of_ints,
+                         is_ndsequence_of_bools, ndsequence_dim_as_int,
+                         is_basic_index_sequence, is_none, dim_as_type,
+                         dimtype_to_int)
 
 
 def ndarray_getitem(bound_args: Dict[str, BoundArgument],
@@ -16,19 +16,15 @@ def ndarray_getitem(bound_args: Dict[str, BoundArgument],
 
     self_type = ctx.type
     assert len(bound_args) == 1
-    index_arg = next(iter(bound_args.values()))
-    index_arg_typ = index_arg.arg_typ
-    self_ndim_name = self_type.args[1].type.name()
-
-    if self_ndim_name not in DIMTYPE_TO_INT:
-        return ctx.default_return_type
-
-    self_ndim_int = DIMTYPE_TO_INT[self_ndim_name]
+    index_type = next(iter(bound_args.values())).arg_typ
+    self_ndim_int = dimtype_to_int(self_type.args[1])
+    if not isinstance(self_ndim_int, int):
+        return dim_as_type('Any')
 
     try:
-        result_ndim = basic_indexing_ndim(self_ndim_int, index_arg_typ)
+        result_ndim = basic_indexing_ndim(self_ndim_int, index_type)
     except BasicIndexingError:
-        result_ndim = advanced_indexing_ndim(self_ndim_int, index_arg_typ)
+        result_ndim = advanced_indexing_ndim(self_ndim_int, index_type)
 
     if result_ndim == 0:
         return ctx.default_return_type.args[0]
@@ -64,8 +60,10 @@ def advanced_indexing_ndim(input_ndim, type):
 
     if is_ndarray_of_bools(type):
         n_int_arrays = ndarray_dim_as_int(type)  # like .nonzero()
-        n_slices = input_ndim - n_int_arrays
-        return 1 + n_slices
+        if isinstance(n_int_arrays, int):
+            n_slices = input_ndim - n_int_arrays
+            return 1 + n_slices
+        return 'Any'
 
     if is_list_of_int(type):
         return input_ndim
@@ -75,9 +73,7 @@ def advanced_indexing_ndim(input_ndim, type):
             or is_ndsequence_of_ints(i) or is_ndarray_of_bools(i)
             or is_ndsequence_of_bools(i) for i in type.items):
 
-        n_ellipsis = sum(is_ellipsis(i) for i in type.items)
         n_int_arrays = sum(is_ndarray_of_ints(i, no_bools=True) or is_ndsequence_of_ints(i, no_bools=True) for i in type.items)
-        n_bool_arrays = sum(is_ndarray_of_bools(i) or is_ndsequence_of_bools(i) for i in type.items)
         n_slices = sum(is_slice(i) for i in type.items)
         n_ints = sum(is_int(i) for i in type.items)
 

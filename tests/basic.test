@@ -242,7 +242,23 @@ import numpy as np
 a = np.zeros((1,1))
 b = np.zeros((1,1))
 reveal_type(np.add(a, b))
+reveal_type(np.add(a, float(1.0)))
+reveal_type(np.add(a, int(1)))
+reveal_type(np.add(1, 1))
+reveal_type(np.add(1, 1.0))
+reveal_type(np.absolute(1.0))
+reveal_type(np.absolute(a))
 [out]
 main:4: error: Revealed type is 'numpy.ndarray[builtins.float, numpy.TwoD]'
+main:5: error: Revealed type is 'numpy.ndarray[builtins.float, numpy.TwoD]'
+main:6: error: Revealed type is 'numpy.ndarray[builtins.float, numpy.TwoD]'
+main:7: error: Revealed type is 'builtins.int'
+main:8: error: Revealed type is 'builtins.float'
+main:9: error: Revealed type is 'builtins.float'
+main:10: error: Revealed type is 'numpy.ndarray[builtins.float, numpy.TwoD]'
 
-
+[case frexp]
+import numpy as np
+reveal_type(np.frexp(1.0))
+[out]
+main:2: error: Revealed type is 'Tuple[builtins.float, builtins.int]'

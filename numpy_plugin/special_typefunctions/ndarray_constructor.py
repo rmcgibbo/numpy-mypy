@@ -1,12 +1,12 @@
-from typing import Tuple, Dict
+from typing import Dict
+from mypy.types import AnyType
 from mypy.plugin import FunctionContext
-from .bind_arguments import BoundArgument
-from .shortcuts import (is_int, is_ndarray_of_ints, ndarray_dim_as_int,
-                        is_slice, is_ellipsis, is_ndarray_of_bools,
-                        is_list_of_int, is_ndsequence_of_ints,
-                        is_ndsequence_of_bools, ndsequence_dim_as_int,
-                        is_basic_index_sequence, is_none,
-                        is_ndarray, ndsequence_dim_as_type)
+import logging
+from ..bind_arguments import BoundArgument
+from ..shortcuts import (is_ndarray, is_ndsequence_of_ints, is_ndsequence_of_bools, is_ndsequence_of_floats,
+                         ndsequence_dim_as_type)
+
+log = logging.getLogger(__name__)
 
 
 def ndarray_constructor(bound_args: Dict[str, BoundArgument],
@@ -20,15 +20,12 @@ def ndarray_constructor(bound_args: Dict[str, BoundArgument],
     if is_ndsequence_of_ints(arg_typ):
         return ctx.default_return_type.copy_modified(args=
             [ctx.api.named_type('builtins.int'), ndsequence_dim_as_type(arg_typ)])
-    if is_ndsequence_of_bool(arg_typ):
+    if is_ndsequence_of_bools(arg_typ):
         return ctx.default_return_type.copy_modified(args=
             [ctx.api.named_type('builtins.bool'), ndsequence_dim_as_type(arg_typ)])
-    if is_ndsequence_of_float(arg_typ):
+    if is_ndsequence_of_floats(arg_typ):
         return ctx.default_return_type.copy_modified(args=
             [ctx.api.named_type('builtins.float'), ndsequence_dim_as_type(arg_typ)])
 
-    raise ValueError()
-
-
-
-
+    log.info('could not determine type of %s', arg_typ)
+    return ctx.default_return_type.copy_modified(args=[AnyType(), AnyType()])
