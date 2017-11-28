@@ -1,3 +1,5 @@
+# This derived from https://github.com/machinalis/mypy-data/blob/master/numpy-mypy/numpy/__init__.pyi, copyright (c) 2016 Machinalis
+
 from typing import (Any, Callable, Dict, Generic, Iterator, List, Optional, Sequence, Tuple, Type, Text,
                     TypeVar, Union, Sized, Iterable, SupportsInt, SupportsFloat, overload, SupportsAbs)
 
