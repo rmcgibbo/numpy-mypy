@@ -6,4 +6,4 @@ install:
   - pip install mypy==0.550 pytest
 
 script:
-  - py.test tests/
+  - py.test tests/ -v
