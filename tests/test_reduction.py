@@ -29,9 +29,9 @@ reveal_type(b)  # Revealed type is 'numpy.ndarray[Any, numpy.OneD*]'
 def test_cumsum(mypytest):
     mypytest('''
 import numpy as np
-reveal_type(np.cumsum(np.zeros((10,10)),axis=1))  # Revealed type is 'numpy.ndarray[builtins.float*, numpy.TwoD*]'
-reveal_type(np.cumsum(np.zeros((10,10))))  # Revealed type is 'numpy.ndarray[builtins.float*, numpy.OneD]'
-reveal_type(np.cumsum(np.zeros((10,10)),axis=None))  # Revealed type is 'numpy.ndarray[builtins.float*, numpy.OneD]'
+reveal_type(np.cumsum(np.zeros((10,10)),axis=1))  # Revealed type is 'numpy.ndarray[builtins.float, numpy.TwoD]'
+reveal_type(np.cumsum(np.zeros((10,10))))  # Revealed type is 'numpy.ndarray[builtins.float, numpy.OneD]'
+reveal_type(np.cumsum(np.zeros((10,10)),axis=None))  # Revealed type is 'numpy.ndarray[builtins.float, numpy.OneD]'
 ''')
 
 
