@@ -1,3 +1,5 @@
+# numpy-mypy
+
 This is a very preliminary work-in-progress attempt to introduce mypy type annotations for numpy.
 
 Clone and `cd` into this repo, and try something like
