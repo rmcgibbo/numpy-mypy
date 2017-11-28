@@ -95,7 +95,7 @@ def advanced_indexing_ndim(input_ndim, type):
                 (ndsequence_dim_as_int(i) for i in type.items if is_ndsequence_of_ints(i))),
                 default=1)
 
-        print(type)
+        # print(type)
 
         if n_effective_int_arrays + n_slices < (input_ndim - n_ints):
             n_slices += (input_ndim - n_effective_int_arrays + n_slices - n_ints)
