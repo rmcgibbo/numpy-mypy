@@ -8,7 +8,7 @@ from ..shortcuts import (is_int, is_ndarray_of_ints, ndarray_dim_as_int,
                          is_list_of_int, is_ndsequence_of_ints,
                          is_ndsequence_of_bools, ndsequence_dim_as_int,
                          is_basic_index_sequence, is_none, dim_as_type,
-                         dimtype_to_int)
+                         dimtype_to_int, is_any)
 
 
 def ndarray_getitem(bound_args: Dict[str, BoundArgument],
@@ -75,6 +75,9 @@ def advanced_indexing_ndim(input_ndim, type):
     if is_list_of_int(type):
         return input_ndim
 
+    if isinstance(type, TupleType) and any(is_any(i) for i in type.items):
+        return 'Any'
+
     if isinstance(type, TupleType) and all(
             is_int(i) or is_slice(i) or is_ellipsis(i) or is_ndarray_of_ints(i)
             or is_ndsequence_of_ints(i) or is_ndarray_of_bools(i)
@@ -91,6 +94,8 @@ def advanced_indexing_ndim(input_ndim, type):
                 (ndarray_dim_as_int(i) for i in type.items if is_ndarray_of_ints(i)),
                 (ndsequence_dim_as_int(i) for i in type.items if is_ndsequence_of_ints(i))),
                 default=1)
+
+        print(type)
 
         if n_effective_int_arrays + n_slices < (input_ndim - n_ints):
             n_slices += (input_ndim - n_effective_int_arrays + n_slices - n_ints)

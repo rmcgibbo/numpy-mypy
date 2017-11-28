@@ -1,0 +1,8 @@
+language: python
+sudo: false
+
+install:
+  - pip install mypy==0.55 pytest
+
+script:
+  - py.test tests/

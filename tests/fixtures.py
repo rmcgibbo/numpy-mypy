@@ -27,8 +27,7 @@ def _mypytest_inner(s: str):
         f.write('''
 [mypy]
 
-mypy_path = {0}
-incremental = True
+mypy_path = {0}/numpy_plugin/stubs
 disallow_untyped_defs = True
 ignore_missing_imports = True
 show_traceback = True

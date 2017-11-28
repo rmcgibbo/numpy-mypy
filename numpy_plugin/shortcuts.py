@@ -1,6 +1,6 @@
 from typing import Union
 from functools import lru_cache
-from mypy.types import NoneTyp, UnionType, AnyType, Type, TupleType, UninhabitedType, Instance
+from mypy.types import NoneTyp, UnionType, AnyType, Type, TupleType, UninhabitedType, Instance, TypeOfAny
 from mypy.sametypes import is_same_type
 from mypy.subtypes import is_subtype
 
@@ -11,7 +11,8 @@ INT_TO_DIMTYPE = {
         0: 'ZeroD',
         1: 'OneD',
         2: 'TwoD',
-        3: 'ThreeD'
+        3: 'ThreeD',
+        4: 'FourD',
 }
 DIMTYPE_TO_INT = {v: k for k, v in INT_TO_DIMTYPE.items()}
 
@@ -92,6 +93,10 @@ def is_basic_index_sequence(type: Type):
 
 
 @lru_cache()
+def is_any(typ: Type):
+    return isinstance(typ, AnyType)
+
+@lru_cache()
 def is_shapetype(type: Type):
     return is_same_type(type, API.modules['numpy'].names['ShapeType'].type)
 
@@ -107,31 +112,39 @@ def is_dtypetype(type: Type):
 
 
 @lru_cache()
-def is_ndarray(type: Type):
-    return is_subtype(type, API.named_generic_type('numpy.ndarray',
-        args=[AnyType(), AnyType()]))
+def is_ndarray(typ: Type):
+    if not isinstance(typ, Instance):
+        return False
+    return is_subtype(typ, API.named_generic_type('numpy.ndarray',
+        args=[AnyType(TypeOfAny.unannotated), AnyType(TypeOfAny.unannotated)]))
 
 
 @lru_cache()
-def is_ndarray_of_ints(type: Type, no_bools: bool=True):
-    of_ints = is_subtype(type, API.named_generic_type('numpy.ndarray',
-        args=[int_type(), API.named_type('numpy._Dimension')]))
+def is_ndarray_of_ints(typ: Type, no_bools: bool=True):
+    if not isinstance(typ, Instance):
+        return False
+    of_ints = is_subtype(typ, API.named_generic_type('numpy.ndarray',
+        args=[int_type(), API.named_type('numpy._Dimension')])) and (not is_same_type(typ.args[1], AnyType(TypeOfAny.unannotated)))
 
     if not no_bools:
         return of_ints
-    return of_ints and not is_ndarray_of_bools(type)
+    return of_ints and not is_ndarray_of_bools(typ)
 
 
 @lru_cache()
-def is_ndarray_of_bools(type: Type):
-    return is_subtype(type, API.named_generic_type('numpy.ndarray',
-        args=[bool_type(), API.named_type('numpy._Dimension')]))
+def is_ndarray_of_bools(typ: Type):
+    if not isinstance(typ, Instance):
+        return False
+    return is_subtype(typ, API.named_generic_type('numpy.ndarray',
+        args=[bool_type(), API.named_type('numpy._Dimension')])) and (not is_same_type(typ.args[1], AnyType(TypeOfAny.unannotated)))
 
 
 @lru_cache()
-def is_ndarray_of_floats(type: Type):
-    return is_subtype(type, API.named_generic_type('numpy.ndarray',
-        args=[float_type(), API.named_type('numpy._Dimension')]))
+def is_ndarray_of_floats(typ: Type):
+    if not isinstance(typ, Instance):
+        return False
+    return is_subtype(typ, API.named_generic_type('numpy.ndarray',
+        args=[float_type(), API.named_type('numpy._Dimension')])) and (not is_same_type(typ.args[1], AnyType(TypeOfAny.unannotated)))
 
 
 @lru_cache()
@@ -150,17 +163,17 @@ def is_ndsequence_of(type: Type, base_type: Type):
 
 @lru_cache()
 def is_ndsequence_of_bools(type: Type):
-    return is_ndsequence_of(type, bool_type())
+    return is_ndsequence_of(type, bool_type()) and not isinstance(type.args[0], AnyType)
 
 
 @lru_cache()
 def is_ndsequence_of_floats(type: Type):
-    return is_ndsequence_of(type, float_type())
+    return is_ndsequence_of(type, float_type()) and not isinstance(type.args[0], AnyType)
 
 
 @lru_cache()
 def is_ndsequence_of_ints(type: Type, no_bools: bool=True):
-    of_ints = is_ndsequence_of(type, int_type())
+    of_ints = is_ndsequence_of(type, int_type()) and not isinstance(type.args[0], AnyType)
     if not no_bools:
         return of_ints
     return of_ints and not is_ndsequence_of_bools(type)
@@ -168,7 +181,7 @@ def is_ndsequence_of_ints(type: Type, no_bools: bool=True):
 
 @lru_cache()
 def ndsequence_dim_as_int(type: Type) -> int:
-    i = AnyType()
+    i = AnyType(TypeOfAny.unannotated)
     si = API.named_generic_type('typing.Sequence', args=[i])
     ssi = API.named_generic_type('typing.Sequence', args=[si])
     sssi = API.named_generic_type('typing.Sequence', args=[ssi])
@@ -190,7 +203,7 @@ def ndsequence_dim_as_type(type: Type):
 @lru_cache()
 def zerodim_to_scalar(typ: Type) -> Type:
     if is_subtype(typ,  API.named_generic_type('numpy.ndarray',
-        args=[AnyType(), API.named_type('numpy.ZeroD')])) and (not is_same_type(typ.args[1], AnyType())):
+        args=[AnyType(TypeOfAny.unannotated), API.named_type('numpy.ZeroD')])) and (not is_same_type(typ.args[1], AnyType(TypeOfAny.unannotated))):
         return typ.args[0]
     return typ
 
@@ -210,7 +223,7 @@ def dimtype_to_int(typ) -> Union[int, str]:
 def dim_as_type(i: Union[str, int, Type]):
     if isinstance(i, str):
         assert i == 'Any'
-        return AnyType()
+        return AnyType(TypeOfAny.unannotated)
     if i in INT_TO_DIMTYPE:
         return  API.named_type('numpy.%s' % INT_TO_DIMTYPE[i])
 

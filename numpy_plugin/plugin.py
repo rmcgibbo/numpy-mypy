@@ -11,13 +11,14 @@ from . import shortcuts
 from .bind_arguments import bind_arguments
 from .visitor import TypefunctionRegistryTransformer, SimpleTransformer
 from .typefunctions import registry
-from .special_typefunctions.indexing import ndarray_getitem
+from .special_typefunctions.indexing import ndarray_getitem  #, ndarray_setitem
 from .special_typefunctions.ndarray_constructor import ndarray_constructor
 
 
 class NumpyPlugin(Plugin):
     special_ndarray_hooks = {
         'numpy.ndarray.__getitem__': ndarray_getitem,
+        'numpy.ndarray.__setitem__': ndarray_getitem,
         'numpy.array': ndarray_constructor,
         'numpy.asarray': ndarray_constructor,
         'numpy.ascontiguousarray': ndarray_constructor,
@@ -33,14 +34,17 @@ class NumpyPlugin(Plugin):
         self.fullname2sig = {}
 
     def do_setup(self, ctx: FunctionContext):
-        if 'numpy' not in ctx.api.modules or len(ctx.api.modules['numpy'].names['ndarray'].node.names) == 0:
+        if 'numpy' not in ctx.api.modules or len(
+                ctx.api.modules['numpy'].names['ndarray'].node.names) == 0:
             return
 
         self.api = ctx.api
         self.npmodule = ctx.api.modules['numpy']
         shortcuts.API = self.api
 
-        for node in itertools.chain(self.npmodule.names.values(), self.npmodule.names['ndarray'].node.names.values()):
+        for node in itertools.chain(
+                self.npmodule.names.values(),
+                self.npmodule.names['ndarray'].node.names.values()):
             if isinstance(node.type, CallableType):
                 for tfname, tffunc in registry.items():
                     if node.type.accept(HasInstanceQuery(tfname)):
@@ -52,17 +56,19 @@ class NumpyPlugin(Plugin):
             split = fullname.split('.')
             if len(split) == 2:
                 assert split[0] == 'numpy'
-                self.fullname2sig[fullname] = self.npmodule.names[split[1]].type
+                self.fullname2sig[fullname] = self.npmodule.names[split[
+                    1]].type
             elif len(split) == 3:
                 assert split[0] == 'numpy'
-                self.fullname2sig[fullname] = self.npmodule.names[split[1]].node.names[split[2]].type
+                self.fullname2sig[fullname] = self.npmodule.names[split[
+                    1]].node.names[split[2]].type
             else:
                 assert False
 
         self.is_setup = True
 
-
-    def function_hook(self, fullname: str, calltype: str, ctx: FunctionContext):
+    def function_hook(self, fullname: str, calltype: str,
+                      ctx: FunctionContext):
         if not self.is_setup:
             self.do_setup(ctx)
             if fullname not in self.hooked_functions:
@@ -75,16 +81,20 @@ class NumpyPlugin(Plugin):
         if fullname in self.special_ndarray_hooks:
             return self.special_ndarray_hooks[fullname](bound_args, ctx)
 
-        result = ctx.default_return_type.accept(TypefunctionRegistryTransformer(registry, fullname, bound_args))
+        result = ctx.default_return_type
+        result = result.accept(
+            TypefunctionRegistryTransformer(registry, fullname, bound_args))
+        result = result.accept(
+            TypefunctionRegistryTransformer(registry, fullname, bound_args))
         return result.accept(SimpleTransformer(shortcuts.zerodim_to_scalar))
 
     def get_function_hook(self, fullname):
         if (not self.is_setup) or fullname in self.hooked_functions:
-            return functools.partial(self.function_hook, fullname,  'function')
+            return functools.partial(self.function_hook, fullname, 'function')
         return False
 
-    def get_method_hook(self, fullname: str
-                        ) -> Optional[Callable[[MethodContext], Type]]:
+    def get_method_hook(
+            self, fullname: str) -> Optional[Callable[[MethodContext], Type]]:
         if (not self.is_setup) or fullname in self.hooked_functions:
             return functools.partial(self.function_hook, fullname, 'method')
         return False

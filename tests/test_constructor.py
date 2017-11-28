@@ -8,7 +8,7 @@ a = np.zeros(10)
 b = np.empty_like(a)
 c = np.empty_like(a, dtype=bool)
 d = np.arange(10, dtype=np.int64)
-reveal_type(b)  # Revealed type is 'numpy.ndarray[builtins.float*, numpy.OneD]'
+reveal_type(b)  # Revealed type is 'numpy.ndarray[builtins.float, numpy.OneD]'
 reveal_type(c)  # Revealed type is 'numpy.ndarray[builtins.bool, numpy.OneD]'
 reveal_type(d)  # Revealed type is 'numpy.ndarray[builtins.int, numpy.OneD]'
 ''')
