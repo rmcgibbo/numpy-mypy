@@ -3,7 +3,7 @@ python:
   - "3.6"
 
 install:
-  - pip install mypy==0.55 pytest
+  - pip install mypy==0.550 pytest
 
 script:
   - py.test tests/
